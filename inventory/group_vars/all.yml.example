@@ -110,25 +110,3 @@ docker_daemon_config:
     - base: "10.10.0.0/16"
       size: 24
 
-# --- Stack versions ---
-airflow_version: "2.10.4"
-minio_version: "RELEASE.2024-12-18T13-15-44Z"
-postgres_version: "16-alpine"
-redis_version: "7-alpine"
-grafana_version: "11.4.0"
-prometheus_version: "v2.55.1"
-cadvisor_version: "v0.49.2"
-node_exporter_version: "v1.8.2"
-jupyter_version: "latest"
-
-# --- Secrets (use ansible-vault in production) ---
-postgres_password: "change-me-strong-password"
-redis_password: "change-me-redis-password"
-airflow_fernet_key: ""          # Generate: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-airflow_webserver_secret: ""    # Generate: python3 -c "import secrets; print(secrets.token_hex(32))"
-airflow_admin_password: "change-me"
-minio_root_user: "minioadmin"
-minio_root_password: "change-me-minio-password"
-grafana_admin_user: "admin"
-grafana_admin_password: "change-me-grafana-password"
-jupyter_token: "change-me-jupyter-token"
