@@ -1,0 +1,28 @@
+---
+# roles/common/tasks/netplan.yml
+
+- name: Detect primary ethernet interface
+  ansible.builtin.shell: |
+    ip -o link show | awk -F': ' '{print $2}' | grep -E '^(eno|enp|eth)' | head -1
+  register: detected_interface
+  changed_when: false
+
+- name: Set ethernet interface fact
+  ansible.builtin.set_fact:
+    eth_interface: "{{ detected_interface.stdout | trim }}"
+
+- name: Fail if no ethernet interface detected
+  ansible.builtin.fail:
+    msg: "Could not detect ethernet interface. Set eth_interface manually in host_vars."
+  when: eth_interface == ""
+
+- name: Remove existing netplan configs
+  ansible.builtin.shell: rm -f /etc/netplan/*.yaml /etc/netplan/*.yml
+  changed_when: true
+
+- name: Deploy netplan static IP config
+  ansible.builtin.template:
+    src: 01-static.yaml.j2
+    dest: /etc/netplan/01-static.yaml
+    mode: "0600"
+  notify: apply netplan

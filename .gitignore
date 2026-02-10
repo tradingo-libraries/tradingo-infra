@@ -1,0 +1,7 @@
+inventory/group_vars/all.yml
+*.retry
+/tmp/
+__pycache__/
+*.swp
+*.bak
+.env

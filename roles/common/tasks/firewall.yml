@@ -1,0 +1,107 @@
+---
+# roles/common/tasks/firewall.yml
+
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Set UFW default deny incoming
+  community.general.ufw:
+    direction: incoming
+    default: deny
+
+- name: Set UFW default allow outgoing
+  community.general.ufw:
+    direction: outgoing
+    default: allow
+
+- name: Allow SSH
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    comment: SSH
+
+# --- Docker Swarm ports ---
+- name: Allow Swarm cluster management
+  community.general.ufw:
+    rule: allow
+    port: "2377"
+    proto: tcp
+    comment: Swarm cluster management
+
+- name: Allow Swarm node communication (TCP)
+  community.general.ufw:
+    rule: allow
+    port: "7946"
+    proto: tcp
+    comment: Swarm node communication
+
+- name: Allow Swarm node communication (UDP)
+  community.general.ufw:
+    rule: allow
+    port: "7946"
+    proto: udp
+    comment: Swarm node communication
+
+- name: Allow Swarm overlay network
+  community.general.ufw:
+    rule: allow
+    port: "4789"
+    proto: udp
+    comment: Swarm overlay VXLAN
+
+# --- Internal service ports (LAN + WireGuard) ---
+- name: Allow Docker metrics from LAN and WG
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ item }}"
+    port: "9323"
+    proto: tcp
+    comment: Docker metrics
+  loop:
+    - "{{ network_subnet }}"
+    - "{{ wg_network }}"
+
+- name: Allow service ports from LAN and WG
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ item.0 }}"
+    port: "{{ item.1.port }}"
+    proto: tcp
+    comment: "{{ item.1.name }}"
+  loop: "{{ [network_subnet, wg_network] | product(service_ports) | list }}"
+  loop_control:
+    label: "{{ item.0 }} -> {{ item.1.name }}:{{ item.1.port }}"
+  vars:
+    service_ports:
+      - { port: "8080", name: "Airflow" }
+      - { port: "9000", name: "Minio API" }
+      - { port: "9001", name: "Minio Console" }
+      - { port: "3000", name: "Grafana" }
+      - { port: "9090", name: "Prometheus" }
+      - { port: "8888", name: "Jupyter" }
+
+# --- Manager-only ports ---
+- name: Allow NFS from LAN (manager only)
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ network_subnet }}"
+    port: "{{ item }}"
+    proto: tcp
+    comment: NFS
+  loop: ["2049", "111"]
+  when: swarm_role == "manager"
+
+- name: Allow WireGuard (manager only)
+  community.general.ufw:
+    rule: allow
+    port: "{{ wg_port | string }}"
+    proto: udp
+    comment: WireGuard
+  when: swarm_role == "manager"
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled

@@ -1,0 +1,134 @@
+---
+# =============================================================================
+# group_vars/all.yml.example — Copy to all.yml and fill in secrets
+# cp inventory/group_vars/all.yml.example inventory/group_vars/all.yml
+# =============================================================================
+
+# --- Network ---
+network_subnet: "192.168.1.0/24"
+network_gateway: "192.168.1.1"
+dns_servers:
+  - "1.1.1.1"
+  - "8.8.8.8"
+search_domain: "home.lab"
+
+# --- Digital Ocean Gateway ---
+do_public_ip: ""               # FILL IN: your droplet's public IP
+do_ssh_user: "admin"
+
+# --- WireGuard ---
+wg_port: 51820
+wg_interface: "wg0"
+wg_network: "10.99.0.0/24"
+wg_server_ip: "10.99.0.1"      # DO gateway
+wg_manager_ip: "10.99.0.2"     # nuc-01
+
+wg_clients:
+  rory:
+    ip: "10.99.0.10"
+  # jane:
+  #   ip: "10.99.0.11"
+
+# --- Groups ---
+user_groups:
+  - name: research
+    gid: 1100
+  - name: service
+    gid: 1200
+
+# --- Users ---
+users:
+  - username: admin
+    uid: 1000
+    group: admin
+    extra_groups: "sudo,docker"
+    shell: /bin/bash
+    comment: "Administrator"
+    create_home: true
+    ssh_key: true
+    # Uncomment and set to lock down:
+    # password: "{{ vault_admin_password }}"
+
+  - username: rory
+    uid: 1100
+    group: research
+    extra_groups: "sudo,docker,research"
+    shell: /bin/bash
+    comment: "Rory - Researcher"
+    create_home: true
+    ssh_key: true
+    # password: "{{ vault_rory_password }}"
+
+  - username: service
+    uid: 1200
+    group: service
+    extra_groups: "docker"
+    shell: /usr/sbin/nologin
+    comment: "Service Account"
+    create_home: false
+    ssh_key: false
+
+# Users whose authorized_keys we manage
+ssh_users:
+  - admin
+  - rory
+
+# --- NFS ---
+nfs_export_base: "/srv/nfs"
+nfs_mount_base: "/mnt/nfs"
+
+nfs_shares:
+  - name: airflow_dags
+    owner_group: research
+    mode: "2775"
+  - name: airflow_logs
+    owner_group: service
+    mode: "2775"
+  - name: airflow_plugins
+    owner_group: service
+    mode: "2775"
+  - name: notebooks
+    owner_group: research
+    mode: "2775"
+  - name: research_data
+    owner_group: research
+    mode: "2775"
+  - name: shared
+    owner_group: root
+    mode: "1777"
+
+# --- Docker ---
+docker_daemon_config:
+  log-driver: json-file
+  log-opts:
+    max-size: "20m"
+    max-file: "5"
+  storage-driver: overlay2
+  metrics-addr: "0.0.0.0:9323"
+  experimental: true
+  default-address-pools:
+    - base: "10.10.0.0/16"
+      size: 24
+
+# --- Stack versions ---
+airflow_version: "2.10.4"
+minio_version: "RELEASE.2024-12-18T13-15-44Z"
+postgres_version: "16-alpine"
+redis_version: "7-alpine"
+grafana_version: "11.4.0"
+prometheus_version: "v2.55.1"
+cadvisor_version: "v0.49.2"
+node_exporter_version: "v1.8.2"
+jupyter_version: "latest"
+
+# --- Secrets (use ansible-vault in production) ---
+postgres_password: "change-me-strong-password"
+redis_password: "change-me-redis-password"
+airflow_fernet_key: ""          # Generate: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+airflow_webserver_secret: ""    # Generate: python3 -c "import secrets; print(secrets.token_hex(32))"
+airflow_admin_password: "change-me"
+minio_root_user: "minioadmin"
+minio_root_password: "change-me-minio-password"
+grafana_admin_user: "admin"
+grafana_admin_password: "change-me-grafana-password"
+jupyter_token: "change-me-jupyter-token"

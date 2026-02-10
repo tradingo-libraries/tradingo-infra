@@ -1,0 +1,24 @@
+---
+# roles/swarm_worker/tasks/main.yml
+
+- name: Check if node is already in a swarm
+  ansible.builtin.command: docker info --format '{{ '{{' }}.Swarm.LocalNodeState{{ '}}' }}'
+  register: swarm_state
+  changed_when: false
+
+- name: Join Docker Swarm
+  ansible.builtin.command: >
+    docker swarm join
+    --token {{ hostvars[groups['managers'][0]].swarm_worker_token }}
+    {{ hostvars[groups['managers'][0]].static_ip }}:2377
+  when: swarm_state.stdout != "active"
+
+- name: Label worker node (from manager)
+  ansible.builtin.command: >
+    docker node update
+    {% for key, value in swarm_labels.items() %}
+    --label-add {{ key }}={{ value }}
+    {% endfor %}
+    {{ hostname }}
+  delegate_to: "{{ groups['managers'][0] }}"
+  changed_when: false

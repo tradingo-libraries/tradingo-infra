@@ -1,0 +1,3 @@
+---
+# group_vars for all swarm nodes (managers + workers)
+swarm_advertise_interface: "eno1"  # Adjust per NUC model if needed

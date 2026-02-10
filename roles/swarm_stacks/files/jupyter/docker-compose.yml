@@ -1,0 +1,51 @@
+services:
+  jupyter:
+    image: quay.io/jupyter/scipy-notebook:${JUPYTER_VERSION:-latest}
+    user: "1100:1100"  # rory UID / research GID
+    environment:
+      JUPYTER_ENABLE_LAB: "yes"
+      NB_UID: "1100"
+      NB_GID: "1100"
+      NB_USER: "rory"
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-changeme}
+      GRANT_SUDO: "yes"
+    ports:
+      - "8888:8888"
+    volumes:
+      - notebooks:/home/rory/notebooks
+      - research-data:/home/rory/data
+      - airflow-dags:/home/rory/dags
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.node == nuc-02
+      resources:
+        limits:
+          memory: 4G
+
+volumes:
+  notebooks:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/nfs/notebooks
+  research-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/nfs/research_data
+  airflow-dags:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/nfs/airflow_dags
+
+networks:
+  backend:
+    external: true

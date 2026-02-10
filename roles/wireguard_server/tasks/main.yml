@@ -1,0 +1,177 @@
+---
+# roles/wireguard_server/tasks/main.yml
+# Runs on the DO gateway
+
+- name: Install WireGuard and QR tools
+  ansible.builtin.apt:
+    name:
+      - wireguard
+      - qrencode
+    state: present
+    update_cache: true
+
+- name: Create WireGuard directory
+  ansible.builtin.file:
+    path: /etc/wireguard
+    state: directory
+    mode: "0700"
+
+# --- Key generation ---
+- name: Generate server private key
+  ansible.builtin.shell: |
+    if [ ! -f /etc/wireguard/server_private.key ]; then
+      wg genkey > /etc/wireguard/server_private.key
+      chmod 600 /etc/wireguard/server_private.key
+      echo "CHANGED"
+    fi
+  register: server_key_gen
+  changed_when: "'CHANGED' in server_key_gen.stdout"
+
+- name: Derive server public key
+  ansible.builtin.shell: cat /etc/wireguard/server_private.key | wg pubkey
+  register: server_pubkey
+  changed_when: false
+
+- name: Save server public key to file
+  ansible.builtin.copy:
+    content: "{{ server_pubkey.stdout }}"
+    dest: /etc/wireguard/server_public.key
+    mode: "0644"
+
+- name: Generate manager peer keys
+  ansible.builtin.shell: |
+    if [ ! -f /etc/wireguard/manager_private.key ]; then
+      wg genkey > /etc/wireguard/manager_private.key
+      chmod 600 /etc/wireguard/manager_private.key
+      echo "CHANGED"
+    fi
+  register: manager_key_gen
+  changed_when: "'CHANGED' in manager_key_gen.stdout"
+
+- name: Derive manager public key
+  ansible.builtin.shell: cat /etc/wireguard/manager_private.key | wg pubkey
+  register: manager_pubkey
+  changed_when: false
+
+- name: Read manager private key
+  ansible.builtin.slurp:
+    src: /etc/wireguard/manager_private.key
+  register: manager_privkey_b64
+
+- name: Generate client keys
+  ansible.builtin.shell: |
+    if [ ! -f /etc/wireguard/{{ item.key }}_private.key ]; then
+      wg genkey > /etc/wireguard/{{ item.key }}_private.key
+      chmod 600 /etc/wireguard/{{ item.key }}_private.key
+      echo "CHANGED"
+    fi
+  loop: "{{ wg_clients | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: client_key_gen
+  changed_when: "'CHANGED' in client_key_gen.stdout"
+
+- name: Derive client public keys
+  ansible.builtin.shell: cat /etc/wireguard/{{ item.key }}_private.key | wg pubkey
+  loop: "{{ wg_clients | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: client_pubkeys
+  changed_when: false
+
+- name: Read client private keys
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/{{ item.key }}_private.key"
+  loop: "{{ wg_clients | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: client_privkeys
+
+# --- Server interface detection ---
+- name: Detect default network interface
+  ansible.builtin.shell: ip route show default | awk '{print $5}' | head -1
+  register: server_iface
+  changed_when: false
+
+# --- Write configs ---
+- name: Read server private key
+  ansible.builtin.slurp:
+    src: /etc/wireguard/server_private.key
+  register: server_privkey_b64
+
+- name: Deploy WireGuard server config
+  ansible.builtin.template:
+    src: wg0-server.conf.j2
+    dest: "/etc/wireguard/{{ wg_interface }}.conf"
+    mode: "0600"
+  notify: restart wireguard
+
+- name: Deploy manager peer config
+  ansible.builtin.template:
+    src: manager-peer.conf.j2
+    dest: /etc/wireguard/manager-peer.conf
+    mode: "0600"
+
+- name: Deploy client configs
+  ansible.builtin.template:
+    src: client.conf.j2
+    dest: "/etc/wireguard/client-{{ item.item.key }}.conf"
+    mode: "0600"
+  loop: "{{ client_privkeys.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+
+# --- IP forwarding ---
+- name: Enable IP forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_set: true
+    reload: true
+
+# --- Firewall ---
+- name: Configure gateway firewall
+  community.general.ufw:
+    rule: "{{ item.rule }}"
+    port: "{{ item.port | default(omit) }}"
+    proto: "{{ item.proto | default(omit) }}"
+    direction: "{{ item.direction | default(omit) }}"
+    default: "{{ item.default | default(omit) }}"
+    route: "{{ item.route | default(omit) }}"
+    interface_in: "{{ item.interface_in | default(omit) }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop:
+    - { rule: allow, port: "22", proto: tcp, comment: SSH }
+    - { rule: allow, port: "{{ wg_port | string }}", proto: udp, comment: WireGuard }
+
+- name: Allow routing through WireGuard
+  community.general.ufw:
+    rule: allow
+    route: true
+    interface_in: "{{ wg_interface }}"
+
+- name: Enable UFW on gateway
+  community.general.ufw:
+    state: enabled
+
+# --- Start WireGuard ---
+- name: Enable and start WireGuard
+  ansible.builtin.service:
+    name: "wg-quick@{{ wg_interface }}"
+    state: started
+    enabled: true
+
+# --- Output ---
+- name: Show connection info
+  ansible.builtin.debug:
+    msg: |
+      WireGuard server configured on {{ do_public_ip }}:{{ wg_port }}
+      Server public key: {{ server_pubkey.stdout }}
+
+      Manager peer config: /etc/wireguard/manager-peer.conf
+      Copy to nuc-01: scp {{ do_ssh_user }}@{{ do_public_ip }}:/etc/wireguard/manager-peer.conf /tmp/
+
+      Client configs:
+      {% for client in wg_clients | dict2items %}
+        {{ client.key }}: /etc/wireguard/client-{{ client.key }}.conf
+      {% endfor %}

@@ -1,0 +1,4 @@
+# /etc/exports — Managed by Ansible
+{% for share in nfs_shares %}
+{{ nfs_export_base }}/{{ share.name }}    {{ network_subnet }}(rw,sync,no_subtree_check,no_root_squash)
+{% endfor %}

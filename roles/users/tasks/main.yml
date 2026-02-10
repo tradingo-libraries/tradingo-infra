@@ -1,0 +1,77 @@
+---
+# roles/users/tasks/main.yml
+
+- name: Create groups with consistent GIDs
+  ansible.builtin.group:
+    name: "{{ item.name }}"
+    gid: "{{ item.gid }}"
+    state: present
+  loop: "{{ user_groups }}"
+  loop_control:
+    label: "{{ item.name }} ({{ item.gid }})"
+
+# Handle the install user (UID 1000) — Ubuntu creates one during install
+# that may have a different name than our 'admin' user
+- name: Check if UID 1000 exists with wrong name
+  ansible.builtin.shell: |
+    existing=$(getent passwd 1000 | cut -d: -f1)
+    if [ -n "$existing" ] && [ "$existing" != "admin" ]; then
+      echo "$existing"
+    fi
+  register: wrong_name_user
+  changed_when: false
+
+- name: Rename install user to admin if needed
+  ansible.builtin.command: >
+    usermod -l admin -d /home/admin -m {{ wrong_name_user.stdout }}
+  when: wrong_name_user.stdout != ""
+
+- name: Rename install user group if needed
+  ansible.builtin.command: >
+    groupmod -n admin {{ wrong_name_user.stdout }}
+  when: wrong_name_user.stdout != ""
+  ignore_errors: true
+
+- name: Create users
+  ansible.builtin.user:
+    name: "{{ item.username }}"
+    uid: "{{ item.uid }}"
+    group: "{{ item.group }}"
+    groups: "{{ item.extra_groups }}"
+    append: true
+    shell: "{{ item.shell }}"
+    comment: "{{ item.comment }}"
+    create_home: "{{ item.create_home }}"
+    state: present
+  loop: "{{ users }}"
+  loop_control:
+    label: "{{ item.username }} ({{ item.uid }})"
+
+- name: Set up SSH directories for interactive users
+  ansible.builtin.file:
+    path: "/home/{{ item }}/.ssh"
+    state: directory
+    owner: "{{ item }}"
+    mode: "0700"
+  loop: "{{ ssh_users }}"
+
+- name: Ensure authorized_keys files exist
+  ansible.builtin.file:
+    path: "/home/{{ item }}/.ssh/authorized_keys"
+    state: touch
+    owner: "{{ item }}"
+    mode: "0600"
+  loop: "{{ ssh_users }}"
+  changed_when: false
+
+# If you want to distribute SSH public keys via Ansible, add them to
+# inventory/group_vars/all.yml and uncomment this:
+#
+# - name: Add SSH authorized keys
+#   ansible.posix.authorized_key:
+#     user: "{{ item.0 }}"
+#     key: "{{ item.1 }}"
+#     state: present
+#   loop: "{{ ssh_key_entries }}"
+#   loop_control:
+#     label: "{{ item.0 }}"

@@ -1,0 +1,3 @@
+---
+# group_vars for the DO gateway
+# Minimal — this node only runs WireGuard

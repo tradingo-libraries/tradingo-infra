@@ -1,0 +1,10 @@
+---
+# playbooks/setup-gateway.yml — Bootstrap DO droplet as WireGuard relay
+# Usage: ansible-playbook playbooks/setup-gateway.yml
+
+- name: Setup DO gateway
+  hosts: gateway
+  become: true
+  roles:
+    - role: wireguard_server
+      tags: [wireguard, gateway]

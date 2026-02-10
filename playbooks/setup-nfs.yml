@@ -1,0 +1,17 @@
+---
+# playbooks/setup-nfs.yml — NFS server on manager, clients on workers
+# Usage: ansible-playbook playbooks/setup-nfs.yml
+
+- name: Setup NFS server
+  hosts: nfs_servers
+  become: true
+  roles:
+    - role: nfs_server
+      tags: [nfs]
+
+- name: Setup NFS clients
+  hosts: nfs_clients
+  become: true
+  roles:
+    - role: nfs_client
+      tags: [nfs]

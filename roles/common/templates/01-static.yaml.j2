@@ -1,0 +1,16 @@
+# Managed by Ansible — do not edit manually
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    {{ eth_interface }}:
+      dhcp4: false
+      addresses:
+        - {{ static_ip }}/24
+      routes:
+        - to: default
+          via: {{ network_gateway }}
+      nameservers:
+        addresses: {{ dns_servers | to_json }}
+        search:
+          - {{ search_domain }}

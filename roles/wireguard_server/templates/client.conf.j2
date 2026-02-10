@@ -1,0 +1,12 @@
+# WireGuard config for: {{ item.item.key }}
+# Import into WireGuard app on laptop/phone
+[Interface]
+Address = {{ item.item.value.ip }}/24
+PrivateKey = {{ item.content | b64decode | trim }}
+DNS = {{ dns_servers | join(', ') }}
+
+[Peer]
+PublicKey = {{ server_pubkey.stdout }}
+Endpoint = {{ do_public_ip }}:{{ wg_port }}
+AllowedIPs = {{ wg_network }}, {{ network_subnet }}
+PersistentKeepalive = 25

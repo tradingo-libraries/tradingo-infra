@@ -1,0 +1,11 @@
+---
+# playbooks/setup-wireguard.yml — Configure WireGuard peer on manager
+# Usage: ansible-playbook playbooks/setup-wireguard.yml
+# Requires: setup-gateway.yml has been run first
+
+- name: Setup WireGuard peer on manager
+  hosts: managers
+  become: true
+  roles:
+    - role: wireguard_peer
+      tags: [wireguard]

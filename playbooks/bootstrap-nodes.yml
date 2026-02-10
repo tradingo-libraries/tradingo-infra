@@ -1,0 +1,16 @@
+---
+# playbooks/bootstrap-nodes.yml — OS setup for all swarm nodes
+# Usage: ansible-playbook playbooks/bootstrap-nodes.yml
+#        ansible-playbook playbooks/bootstrap-nodes.yml --tags users
+#        ansible-playbook playbooks/bootstrap-nodes.yml --limit nuc-03
+
+- name: Bootstrap swarm nodes
+  hosts: swarm
+  become: true
+  roles:
+    - role: common
+      tags: [common, netplan, packages, firewall, ssh]
+    - role: users
+      tags: [users]
+    - role: docker
+      tags: [docker]

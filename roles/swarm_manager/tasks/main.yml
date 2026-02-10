@@ -1,0 +1,47 @@
+---
+# roles/swarm_manager/tasks/main.yml
+
+- name: Check if node is already in a swarm
+  ansible.builtin.command: docker info --format '{{ '{{' }}.Swarm.LocalNodeState{{ '}}' }}'
+  register: swarm_state
+  changed_when: false
+
+- name: Initialize Docker Swarm
+  ansible.builtin.command: >
+    docker swarm init --advertise-addr {{ static_ip }}
+  when: swarm_state.stdout != "active"
+  register: swarm_init
+
+- name: Get worker join token
+  ansible.builtin.command: docker swarm join-token -q worker
+  register: worker_token
+  changed_when: false
+
+- name: Get manager join token
+  ansible.builtin.command: docker swarm join-token -q manager
+  register: manager_token
+  changed_when: false
+
+- name: Save tokens as facts
+  ansible.builtin.set_fact:
+    swarm_worker_token: "{{ worker_token.stdout }}"
+    swarm_manager_token: "{{ manager_token.stdout }}"
+
+- name: Create overlay networks
+  ansible.builtin.command: >
+    docker network create --driver overlay --attachable {{ item }}
+  loop:
+    - backend
+    - monitoring
+  register: net_result
+  failed_when: net_result.rc != 0 and 'already exists' not in net_result.stderr
+  changed_when: net_result.rc == 0
+
+- name: Label manager node
+  ansible.builtin.command: >
+    docker node update
+    {% for key, value in swarm_labels.items() %}
+    --label-add {{ key }}={{ value }}
+    {% endfor %}
+    {{ hostname }}
+  changed_when: false

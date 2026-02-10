@@ -1,0 +1,59 @@
+---
+# playbooks/cluster-status.yml — Quick health check
+# Usage: ansible-playbook playbooks/cluster-status.yml
+
+- name: Check cluster health
+  hosts: managers
+  become: true
+  tasks:
+    - name: Swarm node list
+      ansible.builtin.command: docker node ls
+      register: node_list
+      changed_when: false
+
+    - name: Show nodes
+      ansible.builtin.debug:
+        msg: "{{ node_list.stdout_lines }}"
+
+    - name: Stack list
+      ansible.builtin.command: docker stack ls
+      register: stack_list
+      changed_when: false
+
+    - name: Show stacks
+      ansible.builtin.debug:
+        msg: "{{ stack_list.stdout_lines }}"
+
+    - name: Service list
+      ansible.builtin.command: docker service ls
+      register: service_list
+      changed_when: false
+
+    - name: Show services
+      ansible.builtin.debug:
+        msg: "{{ service_list.stdout_lines }}"
+
+    - name: Check WireGuard tunnel
+      ansible.builtin.command: wg show
+      register: wg_status
+      changed_when: false
+      ignore_errors: true
+
+    - name: Show WireGuard status
+      ansible.builtin.debug:
+        msg: "{{ wg_status.stdout_lines }}"
+      when: wg_status.rc == 0
+
+- name: Check disk usage on all nodes
+  hosts: swarm
+  become: true
+  tasks:
+    - name: Disk usage
+      ansible.builtin.command: df -h / /mnt/nfs
+      register: disk
+      changed_when: false
+      ignore_errors: true
+
+    - name: Show disk usage
+      ansible.builtin.debug:
+        msg: "{{ disk.stdout_lines }}"

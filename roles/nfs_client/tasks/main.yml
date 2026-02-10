@@ -1,0 +1,26 @@
+---
+# roles/nfs_client/tasks/main.yml
+
+- name: Install NFS client
+  ansible.builtin.apt:
+    name: nfs-common
+    state: present
+
+- name: Create NFS mount directories
+  ansible.builtin.file:
+    path: "{{ nfs_mount_base }}/{{ item.name }}"
+    state: directory
+  loop: "{{ nfs_shares }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Mount NFS shares via fstab
+  ansible.posix.mount:
+    src: "{{ hostvars[groups['nfs_servers'][0]].static_ip }}:{{ nfs_export_base }}/{{ item.name }}"
+    path: "{{ nfs_mount_base }}/{{ item.name }}"
+    fstype: nfs4
+    opts: defaults,soft,timeo=30,retrans=3
+    state: mounted
+  loop: "{{ nfs_shares }}"
+  loop_control:
+    label: "{{ item.name }}"

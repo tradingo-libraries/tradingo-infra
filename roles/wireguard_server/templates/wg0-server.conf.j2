@@ -1,0 +1,23 @@
+# Managed by Ansible — do not edit manually
+[Interface]
+Address = {{ wg_server_ip }}/24
+ListenPort = {{ wg_port }}
+PrivateKey = {{ server_privkey_b64.content | b64decode | trim }}
+
+PostUp = iptables -A FORWARD -i {{ wg_interface }} -j ACCEPT; iptables -A FORWARD -o {{ wg_interface }} -j ACCEPT; iptables -t nat -A POSTROUTING -o {{ server_iface.stdout }} -j MASQUERADE
+PostDown = iptables -D FORWARD -i {{ wg_interface }} -j ACCEPT; iptables -D FORWARD -o {{ wg_interface }} -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ server_iface.stdout }} -j MASQUERADE
+
+# --- nuc-01 (Swarm Manager) ---
+# Routes home LAN traffic through this peer
+[Peer]
+PublicKey = {{ manager_pubkey.stdout }}
+AllowedIPs = {{ wg_manager_ip }}/32, {{ network_subnet }}
+PersistentKeepalive = 25
+
+{% for result in client_pubkeys.results %}
+# --- Client: {{ result.item.key }} ---
+[Peer]
+PublicKey = {{ result.stdout }}
+AllowedIPs = {{ result.item.value.ip }}/32
+
+{% endfor %}

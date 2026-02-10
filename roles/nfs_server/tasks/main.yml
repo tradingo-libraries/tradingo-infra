@@ -1,0 +1,30 @@
+---
+# roles/nfs_server/tasks/main.yml
+
+- name: Install NFS server
+  ansible.builtin.apt:
+    name: nfs-kernel-server
+    state: present
+
+- name: Create NFS export directories
+  ansible.builtin.file:
+    path: "{{ nfs_export_base }}/{{ item.name }}"
+    state: directory
+    group: "{{ item.owner_group }}"
+    mode: "{{ item.mode }}"
+  loop: "{{ nfs_shares }}"
+  loop_control:
+    label: "{{ item.name }} ({{ item.owner_group }}, {{ item.mode }})"
+
+- name: Configure NFS exports
+  ansible.builtin.template:
+    src: exports.j2
+    dest: /etc/exports
+    mode: "0644"
+  notify: reload nfs exports
+
+- name: Enable and start NFS server
+  ansible.builtin.service:
+    name: nfs-kernel-server
+    state: started
+    enabled: true

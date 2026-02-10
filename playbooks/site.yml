@@ -1,0 +1,10 @@
+---
+# playbooks/site.yml — Full cluster provisioning
+# Usage: ansible-playbook playbooks/site.yml
+
+- import_playbook: bootstrap-nodes.yml
+- import_playbook: setup-gateway.yml
+- import_playbook: setup-wireguard.yml
+- import_playbook: setup-nfs.yml
+- import_playbook: init-swarm.yml
+- import_playbook: deploy-stacks.yml

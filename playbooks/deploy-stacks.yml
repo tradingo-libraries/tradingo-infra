@@ -1,0 +1,10 @@
+---
+# playbooks/deploy-stacks.yml — Deploy all Docker stacks to the swarm
+# Usage: ansible-playbook playbooks/deploy-stacks.yml
+
+- name: Deploy Docker stacks
+  hosts: managers
+  become: true
+  roles:
+    - role: swarm_stacks
+      tags: [stacks, deploy]

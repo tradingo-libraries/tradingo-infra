@@ -1,0 +1,75 @@
+---
+# playbooks/add-wg-client.yml — Generate a WireGuard client config
+# Usage: ansible-playbook playbooks/add-wg-client.yml -e wg_client_name=jane
+#
+# Prerequisites:
+#   1. Add the client to wg_clients in group_vars/all.yml
+#   2. Run this playbook
+#   3. Fetch the config from the gateway:
+#      scp admin@<do-ip>:/etc/wireguard/client-jane.conf ~/
+
+- name: Generate WireGuard client config
+  hosts: gateway
+  become: true
+  tasks:
+    - name: Validate client name provided
+      ansible.builtin.fail:
+        msg: "Pass -e wg_client_name=<name>. Client must exist in wg_clients in group_vars/all.yml."
+      when: wg_client_name is not defined or wg_client_name not in wg_clients
+
+    - name: Generate client private key
+      ansible.builtin.shell: |
+        if [ ! -f /etc/wireguard/{{ wg_client_name }}_private.key ]; then
+          wg genkey > /etc/wireguard/{{ wg_client_name }}_private.key
+          chmod 600 /etc/wireguard/{{ wg_client_name }}_private.key
+          echo "CHANGED"
+        fi
+      register: key_gen
+      changed_when: "'CHANGED' in key_gen.stdout"
+
+    - name: Derive client public key
+      ansible.builtin.shell: cat /etc/wireguard/{{ wg_client_name }}_private.key | wg pubkey
+      register: client_pubkey
+      changed_when: false
+
+    - name: Read client private key
+      ansible.builtin.slurp:
+        src: "/etc/wireguard/{{ wg_client_name }}_private.key"
+      register: client_privkey
+
+    - name: Read server public key
+      ansible.builtin.slurp:
+        src: /etc/wireguard/server_public.key
+      register: server_pubkey_file
+
+    - name: Write client config
+      ansible.builtin.copy:
+        content: |
+          # WireGuard config for: {{ wg_client_name }}
+          [Interface]
+          Address = {{ wg_clients[wg_client_name].ip }}/24
+          PrivateKey = {{ client_privkey.content | b64decode | trim }}
+          DNS = {{ dns_servers | join(', ') }}
+
+          [Peer]
+          PublicKey = {{ server_pubkey_file.content | b64decode | trim }}
+          Endpoint = {{ do_public_ip }}:{{ wg_port }}
+          AllowedIPs = {{ wg_network }}, {{ network_subnet }}
+          PersistentKeepalive = 25
+        dest: "/etc/wireguard/client-{{ wg_client_name }}.conf"
+        mode: "0600"
+
+    - name: Print peer stanza to add to server config
+      ansible.builtin.debug:
+        msg: |
+          Add this peer to /etc/wireguard/{{ wg_interface }}.conf:
+
+          # --- Client: {{ wg_client_name }} ---
+          [Peer]
+          PublicKey = {{ client_pubkey.stdout }}
+          AllowedIPs = {{ wg_clients[wg_client_name].ip }}/32
+
+          Then reload: wg syncconf {{ wg_interface }} <(wg-quick strip {{ wg_interface }})
+
+          Client config: /etc/wireguard/client-{{ wg_client_name }}.conf
+          QR code: qrencode -t ansiutf8 < /etc/wireguard/client-{{ wg_client_name }}.conf

@@ -1,0 +1,17 @@
+---
+# playbooks/init-swarm.yml — Initialize swarm and join workers
+# Usage: ansible-playbook playbooks/init-swarm.yml
+
+- name: Initialize Swarm manager
+  hosts: managers
+  become: true
+  roles:
+    - role: swarm_manager
+      tags: [swarm]
+
+- name: Join Swarm workers
+  hosts: workers
+  become: true
+  roles:
+    - role: swarm_worker
+      tags: [swarm]

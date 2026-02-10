@@ -1,0 +1,41 @@
+---
+# roles/wireguard_peer/tasks/main.yml
+# Runs on the swarm manager (nuc-01)
+# Fetches the manager-peer.conf from the DO gateway and applies it
+
+- name: Fetch manager peer config from gateway
+  ansible.builtin.fetch:
+    src: /etc/wireguard/manager-peer.conf
+    dest: /tmp/manager-peer.conf
+    flat: true
+  delegate_to: gateway
+
+- name: Deploy WireGuard peer config
+  ansible.builtin.copy:
+    src: /tmp/manager-peer.conf
+    dest: "/etc/wireguard/{{ wg_interface }}.conf"
+    mode: "0600"
+  notify: restart wireguard peer
+
+- name: Enable IP forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_set: true
+    reload: true
+
+- name: Enable and start WireGuard
+  ansible.builtin.service:
+    name: "wg-quick@{{ wg_interface }}"
+    state: started
+    enabled: true
+
+- name: Verify tunnel connectivity
+  ansible.builtin.command: ping -c 2 -W 3 {{ wg_server_ip }}
+  register: ping_result
+  changed_when: false
+  ignore_errors: true
+
+- name: Report tunnel status
+  ansible.builtin.debug:
+    msg: "{{ 'WireGuard tunnel UP' if ping_result.rc == 0 else 'WARNING: Tunnel not reachable. Check DO gateway.' }}"

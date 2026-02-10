@@ -1,0 +1,42 @@
+---
+# roles/common/tasks/main.yml
+
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ hostname }}"
+  tags: hostname
+
+- name: Add cluster hosts to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: ".*{{ item.key }}$"
+    line: "{{ item.value }}    {{ item.key }}"
+    state: present
+  loop: "{{ lookup('ansible.builtin.dict', hostvars | dict2items | selectattr('value.static_ip', 'defined') | items2dict(key_name='key', value_name='value') | dict2items | map(attribute='value') | list | items2dict(key_name='hostname', value_name='static_ip') | default({})) }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when: item.key is defined
+  ignore_errors: true
+  tags: hostname
+
+- name: Simpler /etc/hosts population
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: ".*{{ hostvars[item].hostname }}$"
+    line: "{{ hostvars[item].static_ip }}    {{ hostvars[item].hostname }}"
+    state: present
+  loop: "{{ groups['swarm'] | default([]) }}"
+  when: hostvars[item].static_ip is defined
+  tags: hostname
+
+- import_tasks: netplan.yml
+  tags: netplan
+
+- import_tasks: packages.yml
+  tags: packages
+
+- import_tasks: firewall.yml
+  tags: firewall
+
+- import_tasks: ssh.yml
+  tags: ssh
