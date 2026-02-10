@@ -4,14 +4,18 @@
 - name: Create groups with consistent GIDs
   ansible.builtin.group:
     name: "{{ item.name }}"
-    gid: "{{ item.gid }}"
+    gid: "{{ item.gid | default(omit) }}"
     state: present
   loop: "{{ user_groups }}"
   loop_control:
-    label: "{{ item.name }} ({{ item.gid }})"
+    label: "{{ item.name }} ({{ item.gid | default('auto') }})"
 
 # Handle the install user (UID 1000) — Ubuntu creates one during install
-# that may have a different name than our 'admin' user
+# that may have a different name than our 'admin' user.
+# We cannot rename a logged-in user, so we check whether we are currently
+# connected as that install user. If so, skip the rename — the "Create users"
+# task will create 'admin' as a new user instead. On a subsequent run
+# (connected as admin), the rename can proceed.
 - name: Check if UID 1000 exists with wrong name
   ansible.builtin.shell: |
     existing=$(getent passwd 1000 | cut -d: -f1)
@@ -24,13 +28,9 @@
 - name: Rename install user to admin if needed
   ansible.builtin.command: >
     usermod -l admin -d /home/admin -m {{ wrong_name_user.stdout }}
-  when: wrong_name_user.stdout != ""
-
-- name: Rename install user group if needed
-  ansible.builtin.command: >
-    groupmod -n admin {{ wrong_name_user.stdout }}
-  when: wrong_name_user.stdout != ""
-  ignore_errors: true
+  when:
+    - wrong_name_user.stdout != ""
+    - ansible_user != wrong_name_user.stdout
 
 - name: Create users
   ansible.builtin.user:
@@ -46,6 +46,7 @@
   loop: "{{ users }}"
   loop_control:
     label: "{{ item.username }} ({{ item.uid }})"
+  when: item.username != ansible_user
 
 - name: Set up SSH directories for interactive users
   ansible.builtin.file:
@@ -64,14 +65,19 @@
   loop: "{{ ssh_users }}"
   changed_when: false
 
-# If you want to distribute SSH public keys via Ansible, add them to
-# inventory/group_vars/all.yml and uncomment this:
-#
-# - name: Add SSH authorized keys
-#   ansible.posix.authorized_key:
-#     user: "{{ item.0 }}"
-#     key: "{{ item.1 }}"
-#     state: present
-#   loop: "{{ ssh_key_entries }}"
-#   loop_control:
-#     label: "{{ item.0 }}"
+- name: Copy connecting user's authorized_keys to all ssh users
+  ansible.builtin.copy:
+    src: "/home/{{ ansible_user }}/.ssh/authorized_keys"
+    dest: "/home/{{ item }}/.ssh/authorized_keys"
+    remote_src: true
+    owner: "{{ item }}"
+    mode: "0600"
+  loop: "{{ ssh_users }}"
+  when: ansible_user != item
+
+- name: Grant admin passwordless sudo
+  ansible.builtin.copy:
+    content: "admin ALL=(ALL) NOPASSWD:ALL\n"
+    dest: /etc/sudoers.d/admin
+    mode: "0440"
+    validate: "visudo -cf %s"
