@@ -1,0 +1,71 @@
+---
+# playbooks/deploy-stack.yml — Deploy tradingo stack to Docker Swarm
+#
+# Deploys docker-stack.yaml with a given image tag. The stack file
+# must already be present on the manager (run sync-platform.yml first).
+#
+# Usage:
+#   # Sync + deploy a release:
+#   ansible-playbook playbooks/sync-platform.yml -e tradingo_plat_version=v1.2.0
+#   ansible-playbook playbooks/deploy-stack.yml -e image_tag=v1.2.0
+#
+#   # Deploy with separate image tags per service:
+#   ansible-playbook playbooks/deploy-stack.yml \
+#     -e image_tag=v1.2.0 \
+#     -e jupyter_tag=v1.2.0 \
+#     -e monitor_tag=v1.2.0
+#
+#   # Just redeploy current stack (e.g. after config-only change):
+#   ansible-playbook playbooks/deploy-stack.yml -e image_tag=latest
+
+- name: Deploy tradingo stack
+  hosts: managers
+  become: true
+  vars:
+    stack_name: tradingo
+    stack_file: "{{ nfs_export_base }}/docker-stack.yaml"
+    registry_host: "localhost:5000"
+    jupyter_tag: "{{ image_tag }}"
+    monitor_tag: "{{ image_tag }}"
+  tasks:
+    - name: Validate image_tag is provided
+      ansible.builtin.assert:
+        that:
+          - image_tag is defined
+          - image_tag | length > 0
+        fail_msg: "Pass -e image_tag=<tag> to specify which image tag to deploy"
+
+    - name: Verify stack file exists
+      ansible.builtin.stat:
+        path: "{{ stack_file }}"
+      register: stack_stat
+
+    - name: Fail if stack file missing
+      ansible.builtin.fail:
+        msg: "{{ stack_file }} not found. Run sync-platform.yml first."
+      when: not stack_stat.stat.exists
+
+    - name: Deploy stack
+      ansible.builtin.command:
+        cmd: >
+          docker stack deploy
+          -c {{ stack_file }}
+          --with-registry-auth
+          {{ stack_name }}
+      environment:
+        AIRFLOW_IMAGE: "{{ registry_host }}/tradingo-plat:{{ image_tag }}"
+        JUPYTER_IMAGE: "{{ registry_host }}/tradingo-plat-jupyter:{{ jupyter_tag }}"
+        MONITOR_IMAGE: "{{ registry_host }}/tradingo-plat-monitor:{{ monitor_tag }}"
+        NFS_SERVER: "{{ hostvars[groups['nfs_servers'][0]].static_ip }}"
+        NFS_BASE: "{{ nfs_export_base }}"
+      changed_when: true
+
+    - name: Wait for services to converge
+      ansible.builtin.command:
+        cmd: docker stack services {{ stack_name }} --format "{{ '{{' }}.Name{{ '}}' }} {{ '{{' }}.Replicas{{ '}}' }}"
+      register: stack_services
+      changed_when: false
+
+    - name: Show service status
+      ansible.builtin.debug:
+        msg: "{{ stack_services.stdout_lines }}"

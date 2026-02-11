@@ -45,3 +45,24 @@
     {% endfor %}
     {{ hostname }}
   changed_when: false
+
+# --- Docker Registry (infrastructure service, not part of app stack) ---
+
+- name: Check if registry service exists
+  ansible.builtin.command: docker service inspect registry
+  register: registry_inspect
+  changed_when: false
+  failed_when: false
+
+- name: Create registry service
+  ansible.builtin.command: >
+    docker service create
+    --name registry
+    --publish published=5000,target=5000
+    --mount type=volume,source=registry-data,target=/var/lib/registry
+    --constraint 'node.role == manager'
+    --limit-memory 512M
+    --restart-condition on-failure
+    registry:2
+  when: registry_inspect.rc != 0
+  changed_when: true

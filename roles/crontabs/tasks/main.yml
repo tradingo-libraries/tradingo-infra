@@ -1,0 +1,47 @@
+---
+# roles/crontabs/tasks/main.yml — Deploy cron.d fragments and helper scripts
+
+- name: Create scripts directory
+  ansible.builtin.file:
+    path: /opt/tradingo/cron-scripts
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: crontabs
+
+- name: Sync helper scripts
+  ansible.builtin.copy:
+    src: scripts/
+    dest: /opt/tradingo/cron-scripts/
+    owner: root
+    group: root
+    mode: "0755"
+  tags: crontabs
+
+- name: Deploy shared cron fragments
+  ansible.builtin.copy:
+    src: all/
+    dest: /etc/cron.d/
+    owner: root
+    group: root
+    mode: "0644"
+  tags: crontabs
+
+- name: Check for host-specific cron directory
+  ansible.builtin.stat:
+    path: "{{ role_path }}/files/{{ inventory_hostname }}/"
+  delegate_to: localhost
+  become: false
+  register: host_cron_dir
+  tags: crontabs
+
+- name: Deploy host-specific cron fragments
+  ansible.builtin.copy:
+    src: "{{ inventory_hostname }}/"
+    dest: /etc/cron.d/
+    owner: root
+    group: root
+    mode: "0644"
+  when: host_cron_dir.stat.exists and host_cron_dir.stat.isdir
+  tags: crontabs

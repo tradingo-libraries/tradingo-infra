@@ -1,0 +1,24 @@
+---
+# playbooks/sync-platform.yml — Sync tradingo-plat repo to NFS exports
+#
+# Clones/updates tradingo-plat at a given git tag on the NFS server,
+# then rsyncs dags, config, plugins, notebooks, scripts to NFS shares.
+#
+# Usage:
+#   ansible-playbook playbooks/sync-platform.yml -e tradingo_plat_version=v1.2.0
+#   ansible-playbook playbooks/sync-platform.yml -e tradingo_plat_version=main
+
+- name: Sync tradingo-plat to NFS exports
+  hosts: nfs_servers
+  become: true
+  tasks:
+    - name: Validate version is provided
+      ansible.builtin.assert:
+        that:
+          - tradingo_plat_version is defined
+          - tradingo_plat_version | length > 0
+        fail_msg: "Pass -e tradingo_plat_version=<tag> to specify which version to sync"
+
+    - name: Include sync-repo tasks
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/../roles/nfs_server/tasks/sync-repo.yml"

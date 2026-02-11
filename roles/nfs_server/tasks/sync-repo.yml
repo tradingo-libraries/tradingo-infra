@@ -1,0 +1,61 @@
+---
+# roles/nfs_server/tasks/sync-repo.yml
+# Clone/update tradingo-plat at a given git tag and sync files to NFS exports.
+#
+# Required variables:
+#   tradingo_plat_version  — git tag or branch to checkout (passed via -e)
+#   tradingo_plat_repo     — git repo URL (from group_vars)
+#   tradingo_plat_clone_dir — local clone path (from group_vars)
+#   tradingo_plat_sync_map — list of {src, dest} mappings (from group_vars)
+
+- name: Install git and rsync
+  ansible.builtin.apt:
+    name:
+      - git
+      - rsync
+    state: present
+
+- name: Ensure clone directory exists
+  ansible.builtin.file:
+    path: "{{ tradingo_plat_clone_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Clone tradingo-plat repository
+  ansible.builtin.git:
+    repo: "{{ tradingo_plat_repo }}"
+    dest: "{{ tradingo_plat_clone_dir }}"
+    version: "{{ tradingo_plat_version }}"
+    force: true
+    accept_hostkey: true
+  become_user: "{{ ansible_user }}"
+
+- name: Sync repo directories to NFS exports
+  ansible.posix.synchronize:
+    src: "{{ tradingo_plat_clone_dir }}/{{ item.src }}/"
+    dest: "{{ nfs_export_base }}/{{ item.dest }}/"
+    delete: true
+    recursive: true
+  delegate_to: "{{ inventory_hostname }}"
+  loop: "{{ tradingo_plat_sync_map }}"
+  loop_control:
+    label: "{{ item.src }} → {{ nfs_export_base }}/{{ item.dest }}"
+
+- name: Copy docker-stack.yaml to deploy directory
+  ansible.builtin.copy:
+    src: "{{ tradingo_plat_clone_dir }}/docker-stack.yaml"
+    dest: "{{ nfs_export_base }}/docker-stack.yaml"
+    remote_src: true
+    mode: "0644"
+
+- name: Fix NFS export ownership
+  ansible.builtin.file:
+    path: "{{ nfs_export_base }}/{{ item.dest }}"
+    state: directory
+    recurse: true
+    group: "{{ (nfs_shares | selectattr('name', 'equalto', item.dest) | first).owner_group }}"
+    mode: "{{ (nfs_shares | selectattr('name', 'equalto', item.dest) | first).mode }}"
+  loop: "{{ tradingo_plat_sync_map }}"
+  loop_control:
+    label: "{{ item.dest }}"

@@ -1,0 +1,22 @@
+---
+# playbooks/deploy-crons.yml — Deploy cron.d fragments to swarm hosts
+#
+# Deploys shared and host-specific cron fragments from the crontabs role,
+# along with any helper scripts.
+#
+# Usage:
+#   # Deploy to all swarm hosts:
+#   ansible-playbook playbooks/deploy-crons.yml
+#
+#   # Deploy to a single host:
+#   ansible-playbook playbooks/deploy-crons.yml --limit nuc-01
+#
+#   # Dry run:
+#   ansible-playbook playbooks/deploy-crons.yml --check --diff
+
+- name: Deploy cron jobs
+  hosts: swarm
+  become: true
+  roles:
+    - role: crontabs
+      tags: [crontabs]
