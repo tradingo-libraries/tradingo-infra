@@ -5,3 +5,4 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Clean up old Docker images weekly
 0 3 * * 0  root  docker image prune -af --filter "until=168h" > /dev/null 2>&1
+0 3 * * 0  root  docker system prune --volumes > /dev/null 2>&1

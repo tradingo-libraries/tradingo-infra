@@ -53,7 +53,7 @@
           --with-registry-auth
           {{ stack_name }}
       environment:
-        AIRFLOW_IMAGE: "{{ registry_host }}/tradingo-plat:{{ image_tag }}"
+        AIRFLOW_IMAGE: "{{ registry_host }}/tradingo-plat-airflow:{{ image_tag }}"
         JUPYTER_IMAGE: "{{ registry_host }}/tradingo-plat-jupyter:{{ jupyter_tag }}"
         MONITOR_IMAGE: "{{ registry_host }}/tradingo-plat-monitor:{{ monitor_tag }}"
         NFS_SERVER: "{{ hostvars[groups['nfs_servers'][0]].static_ip }}"

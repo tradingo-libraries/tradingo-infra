@@ -84,10 +84,28 @@ nfs_shares:
   - name: airflow_logs
     owner_group: service
     mode: "2775"
+  - name: airflow_config
+    owner_group: service
+    mode: "2775"
   - name: airflow_plugins
     owner_group: service
     mode: "2775"
+  - name: tradingo_data
+    owner_group: service
+    mode: "2775"
+  - name: tradingo_backfills
+    owner_group: service
+    mode: "2775"
   - name: notebooks
+    owner_group: research
+    mode: "2775"
+  - name: scripts
+    owner_group: service
+    mode: "2775"
+  - name: tradingo_src
+    owner_group: research
+    mode: "2775"
+  - name: tradingo_quant_src
     owner_group: research
     mode: "2775"
   - name: research_data
