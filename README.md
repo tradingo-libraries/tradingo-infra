@@ -61,10 +61,20 @@ ansible-playbook playbooks/setup-gateway.yml       # DO WireGuard relay
 ansible-playbook playbooks/setup-wireguard.yml     # WG peer on manager
 ansible-playbook playbooks/setup-nfs.yml           # NFS server + clients
 ansible-playbook playbooks/init-swarm.yml          # Swarm manager + workers
-ansible-playbook playbooks/deploy-stacks.yml       # All services
+ansible-playbook playbooks/deploy-crons.yml        # Cron jobs (docker cleanup)
 ```
 
-### 3. Day-to-day operations
+### 3. Deploy services
+```bash
+# Deploy monitoring (Prometheus + Grafana):
+ansible-playbook playbooks/deploy-monitoring.yml
+
+# Sync tradingo-plat repo to NFS and deploy the application stack:
+ansible-playbook playbooks/sync-platform.yml -e tradingo_plat_version=v1.2.0
+ansible-playbook playbooks/deploy-stack.yml -e image_tag=v1.2.0
+```
+
+### 4. Day-to-day operations
 ```bash
 # Add a new NUC:
 #   1. Add to inventory/hosts.yml under [workers]
@@ -79,8 +89,11 @@ ansible-playbook playbooks/bootstrap-nodes.yml --tags users
 # Generate a WireGuard client config:
 ansible-playbook playbooks/add-wg-client.yml -e wg_client_name=jane
 
-# Deploy/update stacks only:
-ansible-playbook playbooks/deploy-stacks.yml
+# Redeploy monitoring stack:
+ansible-playbook playbooks/deploy-monitoring.yml
+
+# Update application stack (after sync):
+ansible-playbook playbooks/deploy-stack.yml -e image_tag=latest
 
 # Check cluster health:
 ansible-playbook playbooks/cluster-status.yml
@@ -107,12 +120,13 @@ Adding a researcher: add to `users` in `group_vars/all.yml`, run with `--tags us
 ## Project Structure
 
 ```
-swarm-infra/
+tradingo-infra/
 ├── ansible.cfg                 # Ansible settings
 ├── inventory/
 │   ├── hosts.yml               # All hosts and groups
 │   ├── group_vars/
 │   │   ├── all.yml             # Shared variables (secrets, users, network)
+│   │   ├── all.yml.example     # Template for all.yml
 │   │   ├── swarm.yml           # Swarm node settings
 │   │   └── gateway.yml         # DO gateway settings
 │   └── host_vars/
@@ -128,7 +142,88 @@ swarm-infra/
 │   ├── wireguard_peer/         # WG peer (manager)
 │   ├── swarm_manager/          # Swarm init + network creation
 │   ├── swarm_worker/           # Swarm join
-│   └── swarm_stacks/           # Deploy compose stacks
-├── playbooks/                  # Orchestration playbooks
-└── stacks/                     # Docker compose files
+│   ├── monitoring/             # Prometheus + Grafana stack
+│   └── crontabs/               # Docker cleanup cron jobs
+└── playbooks/
+    ├── site.yml                # Master playbook (full provisioning)
+    ├── bootstrap-nodes.yml     # OS setup, users, Docker, firewall
+    ├── setup-gateway.yml       # DO WireGuard gateway
+    ├── setup-wireguard.yml     # WireGuard peer on manager
+    ├── setup-nfs.yml           # NFS server + clients
+    ├── init-swarm.yml          # Docker Swarm cluster init
+    ├── deploy-crons.yml        # Cron job deployment
+    ├── deploy-monitoring.yml   # Prometheus + Grafana stack
+    ├── deploy-stack.yml        # Tradingo application stack
+    ├── sync-platform.yml       # Sync tradingo-plat repo to NFS
+    ├── cluster-status.yml      # Health check
+    └── add-wg-client.yml       # Generate WireGuard client configs
 ```
+
+## Monitoring Stack
+
+Deployed via `deploy-monitoring.yml` as a separate Docker Swarm stack on the `monitoring` overlay network.
+
+| Service        | Image                          | Port | Deployment |
+|----------------|--------------------------------|------|------------|
+| Prometheus     | `prom/prometheus:latest`       | 9090 | manager    |
+| Grafana        | `grafana/grafana:latest`       | 3000 | manager    |
+| node-exporter  | `prom/node-exporter:latest`    | —    | global     |
+| cadvisor       | `gcr.io/cadvisor/cadvisor:latest` | — | global     |
+
+### Grafana Dashboards
+
+Pre-provisioned dashboards (auto-loaded via Grafana provisioning API):
+
+| Dashboard         | File                                           | Content                              |
+|-------------------|------------------------------------------------|--------------------------------------|
+| Node Exporter     | `roles/monitoring/files/dashboards/node-exporter.json` | CPU, memory, disk, network    |
+| Docker Swarm      | `roles/monitoring/files/dashboards/docker-swarm.json`  | Container counts, service health, cAdvisor metrics |
+
+### Configuration
+
+- Prometheus retention: 30 days / 5 GB (configurable via `prometheus_retention`, `prometheus_retention_size`)
+- Grafana admin password: set via `grafana_admin_password` in `group_vars/all.yml` (default: `admin`)
+- Prometheus scrapes: node-exporter, cadvisor, docker engine metrics (port 9323)
+- Config deployed to `{{ monitoring_config_dir }}` (`/opt/monitoring`) on the manager node
+
+### Managing Monitoring
+
+```bash
+# Deploy / update:
+ansible-playbook playbooks/deploy-monitoring.yml
+
+# Override Grafana password:
+ansible-playbook playbooks/deploy-monitoring.yml -e grafana_admin_password=MySecret
+
+# Tear down:
+ansible-playbook playbooks/deploy-monitoring.yml -e monitoring_state=absent
+```
+
+## Application Deployment
+
+The tradingo stack is deployed in two steps:
+
+### 1. Sync platform code to NFS
+```bash
+ansible-playbook playbooks/sync-platform.yml -e tradingo_plat_version=v1.2.0
+```
+Clones/updates `tradingo-plat` at the given git tag, then rsyncs DAGs, config, plugins, notebooks, and scripts to the appropriate NFS shares.
+
+### 2. Deploy Docker stack
+```bash
+ansible-playbook playbooks/deploy-stack.yml -e image_tag=v1.2.0
+
+# Separate image tags per service:
+ansible-playbook playbooks/deploy-stack.yml \
+  -e image_tag=v1.2.0 \
+  -e jupyter_tag=v1.2.0 \
+  -e monitor_tag=v1.2.0
+
+# Redeploy with current images (e.g. config-only change):
+ansible-playbook playbooks/deploy-stack.yml -e image_tag=latest
+```
+
+Images are pulled from the local registry (`localhost:5000`):
+- `tradingo-plat-airflow:<tag>`
+- `tradingo-plat-jupyter:<tag>`
+- `tradingo-plat-monitor:<tag>`
