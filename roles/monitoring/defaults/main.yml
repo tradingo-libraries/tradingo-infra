@@ -1,0 +1,9 @@
+---
+# roles/monitoring/defaults/main.yml
+
+monitoring_config_dir: /opt/monitoring
+monitoring_state: present
+
+grafana_admin_password: admin
+prometheus_retention: "30d"
+prometheus_retention_size: "5GB"

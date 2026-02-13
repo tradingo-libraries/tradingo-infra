@@ -1,0 +1,20 @@
+---
+# playbooks/deploy-monitoring.yml — Deploy Prometheus + Grafana monitoring stack
+#
+# Deploys node-exporter, cadvisor, Prometheus, and Grafana as a
+# separate Docker Swarm stack on the monitoring overlay network.
+#
+# Usage:
+#   ansible-playbook playbooks/deploy-monitoring.yml
+#
+#   # Override Grafana admin password:
+#   ansible-playbook playbooks/deploy-monitoring.yml -e grafana_admin_password=MySecret
+#
+#   # Tear down:
+#   ansible-playbook playbooks/deploy-monitoring.yml -e monitoring_state=absent
+
+- name: Deploy monitoring stack
+  hosts: managers
+  become: true
+  roles:
+    - monitoring

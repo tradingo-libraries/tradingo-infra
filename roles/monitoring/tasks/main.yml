@@ -1,0 +1,81 @@
+---
+# roles/monitoring/tasks/main.yml
+
+- name: Remove monitoring stack
+  when: monitoring_state == "absent"
+  block:
+    - name: Remove monitoring stack
+      ansible.builtin.command: docker stack rm monitoring
+      register: stack_rm
+      failed_when: stack_rm.rc != 0 and 'not found' not in stack_rm.stderr
+      changed_when: stack_rm.rc == 0
+
+    - name: Remove config directory
+      ansible.builtin.file:
+        path: "{{ monitoring_config_dir }}"
+        state: absent
+
+- name: Deploy monitoring stack
+  when: monitoring_state == "present"
+  block:
+    - name: Create config directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ monitoring_config_dir }}"
+        - "{{ monitoring_config_dir }}/grafana/datasources"
+        - "{{ monitoring_config_dir }}/grafana/dashboards"
+        - "{{ monitoring_config_dir }}/grafana/dashboard-json"
+
+    - name: Template Prometheus config
+      ansible.builtin.template:
+        src: prometheus.yml.j2
+        dest: "{{ monitoring_config_dir }}/prometheus.yml"
+        mode: "0644"
+
+    - name: Template Grafana datasource provisioning
+      ansible.builtin.template:
+        src: datasource.yml.j2
+        dest: "{{ monitoring_config_dir }}/grafana/datasources/datasource.yml"
+        mode: "0644"
+
+    - name: Template Grafana dashboard provisioning
+      ansible.builtin.template:
+        src: dashboards.yml.j2
+        dest: "{{ monitoring_config_dir }}/grafana/dashboards/dashboards.yml"
+        mode: "0644"
+
+    - name: Copy Grafana dashboard JSON files
+      ansible.builtin.copy:
+        src: "dashboards/{{ item }}"
+        dest: "{{ monitoring_config_dir }}/grafana/dashboard-json/{{ item }}"
+        mode: "0644"
+      loop:
+        - node-exporter.json
+        - docker-swarm.json
+
+    - name: Template monitoring stack compose file
+      ansible.builtin.template:
+        src: monitoring-stack.yml.j2
+        dest: "{{ monitoring_config_dir }}/monitoring-stack.yml"
+        mode: "0644"
+
+    - name: Deploy monitoring stack
+      ansible.builtin.command:
+        cmd: >
+          docker stack deploy
+          -c {{ monitoring_config_dir }}/monitoring-stack.yml
+          monitoring
+      changed_when: true
+
+    - name: Wait for services to start
+      ansible.builtin.command:
+        cmd: docker stack services monitoring --format "{{ '{{' }}.Name{{ '}}' }} {{ '{{' }}.Replicas{{ '}}' }}"
+      register: monitoring_services
+      changed_when: false
+
+    - name: Show service status
+      ansible.builtin.debug:
+        msg: "{{ monitoring_services.stdout_lines }}"
