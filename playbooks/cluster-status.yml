@@ -49,7 +49,7 @@
   become: true
   tasks:
     - name: Disk usage
-      ansible.builtin.command: df -h / /mnt/nfs
+      ansible.builtin.command: df -h
       register: disk
       changed_when: false
       ignore_errors: true
