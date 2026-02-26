@@ -6,5 +6,7 @@
   hosts: gateway
   become: true
   roles:
+    - role: users
+      tags: [users]
     - role: wireguard_server
       tags: [wireguard, gateway]

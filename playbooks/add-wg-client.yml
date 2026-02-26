@@ -54,7 +54,7 @@
           [Peer]
           PublicKey = {{ server_pubkey_file.content | b64decode | trim }}
           Endpoint = {{ do_public_ip }}:{{ wg_port }}
-          AllowedIPs = {{ wg_network }}, {{ network_subnet }}
+          AllowedIPs = {{ wg_network }}
           PersistentKeepalive = 25
         dest: "/etc/wireguard/client-{{ wg_client_name }}.conf"
         mode: "0600"

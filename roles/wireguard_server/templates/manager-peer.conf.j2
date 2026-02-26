@@ -3,9 +3,6 @@
 Address = {{ wg_manager_ip }}/24
 PrivateKey = {{ manager_privkey_b64.content | b64decode | trim }}
 
-PostUp = iptables -A FORWARD -i {{ wg_interface }} -o {{ swarm_advertise_interface | default('eno1') }} -j ACCEPT; iptables -A FORWARD -i {{ swarm_advertise_interface | default('eno1') }} -o {{ wg_interface }} -j ACCEPT; iptables -t nat -A POSTROUTING -o {{ swarm_advertise_interface | default('eno1') }} -s {{ wg_network }} -j MASQUERADE
-PostDown = iptables -D FORWARD -i {{ wg_interface }} -o {{ swarm_advertise_interface | default('eno1') }} -j ACCEPT; iptables -D FORWARD -i {{ swarm_advertise_interface | default('eno1') }} -o {{ wg_interface }} -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ swarm_advertise_interface | default('eno1') }} -s {{ wg_network }} -j MASQUERADE
-
 [Peer]
 PublicKey = {{ server_pubkey.stdout }}
 Endpoint = {{ do_public_ip }}:{{ wg_port }}

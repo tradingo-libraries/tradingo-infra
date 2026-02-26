@@ -8,147 +8,225 @@
                    ┌────────┴────────┐
                    │  DO Gateway     │
                    │  <public-ip>    │
-                   │  wg: 10.99.0.1  │
+                   │  wg: 10.8.0.1   │
                    └────────┬────────┘
-                            │ WireGuard
+                            │ WireGuard (10.8.0.0/24)
                  ┌──────────┼──────────┐
                  │          │          │
         ┌────────┴───┐  ┌──┴───┐   ┌──┴──────┐
-        │  nuc-01    │  │ Rory │   │ Future  │
+        │  nuc-01    │  │ rory │   │ Future  │
         │  manager   │  │ .10  │   │ .11+    │
         │  wg: .2    │  └──────┘   └─────────┘
         │  LAN .50   │
         │     │      │
         │  ┌──┴───┐  │
         │  │nuc-02│  │    Home LAN: 192.168.1.0/24
-        │  │ .51  │  │    WireGuard: 10.99.0.0/24
+        │  │ .51  │  │    WireGuard: 10.8.0.0/24
         │  └──────┘  │
         └────────────┘
 ```
 
+nuc-01 is the only WireGuard peer — it maintains a persistent tunnel to the DO gateway and also routes LAN traffic for nuc-02 through that tunnel. After initial bootstrap, all Ansible runs target nuc-01 at its WireGuard IP (`10.8.0.2`).
+
+---
+
+## Digital Ocean Gateway Setup
+
+### 1. Create the droplet
+
+- **Image**: Ubuntu 24.04 LTS
+- **Size**: Smallest available (1 vCPU / 512MB is enough for a WireGuard relay)
+- **Region**: Pick closest to your home
+- **SSH keys**: Add your workstation's public key to your DO account **before** creating the droplet — DO injects it into `root` automatically on creation
+
+Once created, note the public IP and set it in `inventory/group_vars/all.yml`:
+```yaml
+do_public_ip: "x.x.x.x"
+do_ssh_user: "rory"
+```
+
+### 2. Verify root access
+
+```bash
+ssh root@<do_public_ip> "whoami"
+```
+
+If this fails, check that your SSH key was added to the DO project before the droplet was created. You may need to rebuild the droplet with the key attached.
+
+### 3. Run the gateway playbook (first time: as root)
+
+On a fresh droplet the `rory`/`admin` users don't exist yet, so the first run must connect as `root`:
+
+```bash
+ansible-playbook playbooks/setup-gateway.yml -e ansible_user=root
+```
+
+This creates users, propagates your SSH key, and configures WireGuard. Subsequent runs use the default `do_ssh_user` (`rory`) and don't need `-e ansible_user=root`.
+
+---
+
+## Bootstrap Order (from scratch)
+
+> **Important**: Steps 1–3 must be run while on the **home LAN** or with direct SSH access to the NUCs (192.168.1.50/51). Step 2 (setup-wireguard) has a chicken-and-egg dependency — it configures the WireGuard tunnel on nuc-01, but to run it you need to reach nuc-01 first. Once the tunnel is up, `10.8.0.2` is always reachable remotely.
+
+```bash
+# 1. Set up DO gateway (run once as root, then rory works for future runs)
+ansible-playbook playbooks/setup-gateway.yml -e ansible_user=root
+
+# 2. Bootstrap swarm nodes (OS, users, Docker, firewall) — must be on LAN
+ansible-playbook playbooks/bootstrap-nodes.yml
+
+# 3. Configure WireGuard peer on nuc-01 — must be on LAN for first run
+ansible-playbook playbooks/setup-wireguard.yml \
+  -e ansible_host=192.168.1.50 --limit nuc-01
+
+# Verify tunnel is up, then all subsequent runs use WG IP from inventory:
+ansible nuc-01 -m ping
+
+# 4. Set up NFS
+ansible-playbook playbooks/setup-nfs.yml
+
+# 5. Initialise Docker Swarm
+ansible-playbook playbooks/init-swarm.yml
+
+# 6. Deploy cron jobs
+ansible-playbook playbooks/deploy-crons.yml
+```
+
+### Chicken-and-egg: re-bootstrapping nuc-01
+
+If the WireGuard tunnel on nuc-01 ever goes down and you're not on the LAN, you can't reach `10.8.0.2`. Override the host on the command line without touching the inventory:
+
+```bash
+ansible-playbook playbooks/setup-wireguard.yml \
+  -e ansible_host=192.168.1.50 --limit nuc-01
+```
+
+---
+
 ## Prerequisites
 
-On your workstation (laptop/desktop):
+On your workstation:
 ```bash
 pip install ansible
-# Or: brew install ansible / apt install ansible
+ansible-galaxy collection install community.general ansible.posix
 ```
 
-SSH key access to all nodes:
+---
+
+## Inventory
+
+| Host    | Group    | `ansible_host` | WG IP     | LAN IP        | Purpose                        |
+|---------|----------|----------------|-----------|---------------|-------------------------------|
+| gateway | gateway  | DO public IP   | 10.8.0.1  | —             | WireGuard relay (not in Swarm) |
+| nuc-01  | managers | 10.8.0.2       | 10.8.0.2  | 192.168.1.50  | Swarm manager, NFS server, WG peer |
+| nuc-02  | workers  | 192.168.1.51   | —         | 192.168.1.51  | Swarm worker (via nuc-01 routing) |
+
+nuc-02 is not a WireGuard peer. It is accessed from outside the LAN via routing through nuc-01's tunnel.
+
+---
+
+## WireGuard Clients
+
+Clients (laptop, phone) connect to the DO gateway and get access to both the WireGuard subnet (`10.8.0.0/24`) and the home LAN (`192.168.1.0/24`).
+
+To add a new client:
+1. Add an entry to `wg_clients` in `inventory/group_vars/all.yml`:
+   ```yaml
+   wg_clients:
+     rory:
+       ip: "10.8.0.10"
+     phone:
+       ip: "10.8.0.11"
+   ```
+2. Run:
+   ```bash
+   ansible-playbook playbooks/add-wg-client.yml -e wg_client_name=phone
+   ```
+3. Fetch the config or scan the QR from the gateway:
+   ```bash
+   # QR code for phone:
+   ssh rory@<do_public_ip> "sudo qrencode -t ansiutf8 < /etc/wireguard/client-phone.conf"
+
+   # Config file for laptop:
+   scp rory@<do_public_ip>:/etc/wireguard/client-rory.conf ~/
+   ```
+
+---
+
+## Day-to-Day Operations
+
 ```bash
-ssh-copy-id admin@192.168.1.50
-ssh-copy-id admin@192.168.1.51
-ssh-copy-id admin@<do-ip>
-```
+# Add a new WireGuard client:
+ansible-playbook playbooks/add-wg-client.yml -e wg_client_name=jane
 
-## Quick Start
-
-### 1. Configure
-```bash
-cp inventory/group_vars/all.yml.example inventory/group_vars/all.yml
-# Edit with your actual IPs, passwords, etc.
-nano inventory/group_vars/all.yml
-```
-
-### 2. Bootstrap everything
-```bash
-# Full cluster setup (nodes + gateway):
-ansible-playbook playbooks/site.yml
-
-# Or step by step:
-ansible-playbook playbooks/bootstrap-nodes.yml    # OS, users, docker, firewall
-ansible-playbook playbooks/setup-gateway.yml       # DO WireGuard relay
-ansible-playbook playbooks/setup-wireguard.yml     # WG peer on manager
-ansible-playbook playbooks/setup-nfs.yml           # NFS server + clients
-ansible-playbook playbooks/init-swarm.yml          # Swarm manager + workers
-ansible-playbook playbooks/deploy-crons.yml        # Cron jobs (docker cleanup)
-```
-
-### 3. Deploy services
-```bash
-# Deploy monitoring (Prometheus + Grafana):
-ansible-playbook playbooks/deploy-monitoring.yml
-
-# Sync tradingo-plat repo to NFS and deploy the application stack:
-ansible-playbook playbooks/sync-platform.yml -e tradingo_plat_version=v1.2.0
-ansible-playbook playbooks/deploy-stack.yml -e image_tag=v1.2.0
-```
-
-### 4. Day-to-day operations
-```bash
-# Add a new NUC:
-#   1. Add to inventory/hosts.yml under [workers]
-#   2. Run:
-ansible-playbook playbooks/site.yml --limit nuc-03
-
-# Add a new user:
+# Add a new user to swarm nodes:
 #   1. Add to users list in inventory/group_vars/all.yml
 #   2. Run:
 ansible-playbook playbooks/bootstrap-nodes.yml --tags users
 
-# Generate a WireGuard client config:
-ansible-playbook playbooks/add-wg-client.yml -e wg_client_name=jane
+# Add a new NUC worker:
+#   1. Add to inventory/hosts.yml under workers
+#   2. Run:
+ansible-playbook playbooks/site.yml --limit nuc-03
 
-# Redeploy monitoring stack:
+# Deploy / update monitoring:
 ansible-playbook playbooks/deploy-monitoring.yml
 
-# Update application stack (after sync):
-ansible-playbook playbooks/deploy-stack.yml -e image_tag=latest
+# Sync platform and deploy application stack:
+ansible-playbook playbooks/sync-platform.yml -e tradingo_plat_version=v1.2.0
+ansible-playbook playbooks/deploy-stack.yml -e image_tag=v1.2.0
 
 # Check cluster health:
 ansible-playbook playbooks/cluster-status.yml
 ```
 
-## Inventory
-
-| Host    | Group          | IP             | WG IP       | Purpose                        |
-|---------|----------------|----------------|-------------|--------------------------------|
-| gateway | gateway        | DO public IP   | 10.99.0.1   | WireGuard relay (not in Swarm) |
-| nuc-01  | managers       | 192.168.1.50   | 10.99.0.2   | Swarm manager, NFS server      |
-| nuc-02  | workers        | 192.168.1.51   | —           | Swarm worker                   |
+---
 
 ## Users & Groups
 
-| User    | UID  | Primary Group | Purpose                              |
-|---------|------|---------------|--------------------------------------|
-| admin   | 1000 | admin         | System administration, sudo          |
-| rory    | 1100 | research      | Researcher, Jupyter, DAGs            |
-| service | 1200 | service       | Airflow, monitoring, non-interactive |
+| User    | UID  | Primary Group | Sudo        | Purpose                              |
+|---------|------|---------------|-------------|--------------------------------------|
+| admin   | 1001 | admin         | NOPASSWD    | System administration                |
+| rory    | 1100 | research      | NOPASSWD    | Researcher, Jupyter, DAGs, Ansible   |
+| service | 1200 | service       | —           | Airflow, monitoring (non-interactive)|
 
-Adding a researcher: add to `users` in `group_vars/all.yml`, run with `--tags users`.
+All users in the `sudo` group get passwordless sudo (required for Ansible automation).
+
+---
 
 ## Project Structure
 
 ```
 tradingo-infra/
-├── ansible.cfg                 # Ansible settings
+├── ansible.cfg                 # Ansible settings (remote_user=admin, key=~/.ssh/id_ed25519)
 ├── inventory/
 │   ├── hosts.yml               # All hosts and groups
 │   ├── group_vars/
-│   │   ├── all.yml             # Shared variables (secrets, users, network)
-│   │   ├── all.yml.example     # Template for all.yml
+│   │   ├── all.yml             # Shared variables (secrets, users, network) — not committed
+│   │   ├── all.yml.example     # Template — copy to all.yml and fill in
 │   │   ├── swarm.yml           # Swarm node settings
 │   │   └── gateway.yml         # DO gateway settings
 │   └── host_vars/
-│       ├── nuc-01.yml          # Per-host overrides
+│       ├── nuc-01.yml          # static_ip, hostname
 │       └── nuc-02.yml
 ├── roles/
-│   ├── common/                 # Hostname, netplan, packages, firewall, SSH
-│   ├── users/                  # Groups and users (research, service, admin)
+│   ├── common/                 # Hostname, netplan static IP, packages, firewall, SSH
+│   ├── users/                  # Groups, users, sudo, SSH key propagation
 │   ├── docker/                 # Docker CE install + daemon config
 │   ├── nfs_server/             # NFS exports (manager only)
 │   ├── nfs_client/             # NFS mounts (workers)
-│   ├── wireguard_server/       # WG relay (DO gateway)
-│   ├── wireguard_peer/         # WG peer (manager)
-│   ├── swarm_manager/          # Swarm init + network creation
+│   ├── wireguard_server/       # WG relay config (DO gateway)
+│   ├── wireguard_peer/         # WG peer config (nuc-01 manager)
+│   ├── swarm_manager/          # Swarm init + overlay network creation
 │   ├── swarm_worker/           # Swarm join
 │   ├── monitoring/             # Prometheus + Grafana stack
 │   └── crontabs/               # Docker cleanup cron jobs
 └── playbooks/
     ├── site.yml                # Master playbook (full provisioning)
     ├── bootstrap-nodes.yml     # OS setup, users, Docker, firewall
-    ├── setup-gateway.yml       # DO WireGuard gateway
-    ├── setup-wireguard.yml     # WireGuard peer on manager
+    ├── setup-gateway.yml       # DO WireGuard gateway + users
+    ├── setup-wireguard.yml     # WireGuard peer on nuc-01
     ├── setup-nfs.yml           # NFS server + clients
     ├── init-swarm.yml          # Docker Swarm cluster init
     ├── deploy-crons.yml        # Cron job deployment
@@ -159,34 +237,18 @@ tradingo-infra/
     └── add-wg-client.yml       # Generate WireGuard client configs
 ```
 
+---
+
 ## Monitoring Stack
 
-Deployed via `deploy-monitoring.yml` as a separate Docker Swarm stack on the `monitoring` overlay network.
+Deployed via `deploy-monitoring.yml` as a Docker Swarm stack on the `monitoring` overlay network.
 
-| Service        | Image                          | Port | Deployment |
-|----------------|--------------------------------|------|------------|
-| Prometheus     | `prom/prometheus:latest`       | 9090 | manager    |
-| Grafana        | `grafana/grafana:latest`       | 3000 | manager    |
-| node-exporter  | `prom/node-exporter:latest`    | —    | global     |
-| cadvisor       | `gcr.io/cadvisor/cadvisor:latest` | — | global     |
-
-### Grafana Dashboards
-
-Pre-provisioned dashboards (auto-loaded via Grafana provisioning API):
-
-| Dashboard         | File                                           | Content                              |
-|-------------------|------------------------------------------------|--------------------------------------|
-| Node Exporter     | `roles/monitoring/files/dashboards/node-exporter.json` | CPU, memory, disk, network    |
-| Docker Swarm      | `roles/monitoring/files/dashboards/docker-swarm.json`  | Container counts, service health, cAdvisor metrics |
-
-### Configuration
-
-- Prometheus retention: 30 days / 5 GB (configurable via `prometheus_retention`, `prometheus_retention_size`)
-- Grafana admin password: set via `grafana_admin_password` in `group_vars/all.yml` (default: `admin`)
-- Prometheus scrapes: node-exporter, cadvisor, docker engine metrics (port 9323)
-- Config deployed to `{{ monitoring_config_dir }}` (`/opt/monitoring`) on the manager node
-
-### Managing Monitoring
+| Service       | Image                             | Port | Placement |
+|---------------|-----------------------------------|------|-----------|
+| Prometheus    | `prom/prometheus:latest`          | 9090 | manager   |
+| Grafana       | `grafana/grafana:latest`          | 3000 | manager   |
+| node-exporter | `prom/node-exporter:latest`       | —    | global    |
+| cadvisor      | `gcr.io/cadvisor/cadvisor:latest` | —    | global    |
 
 ```bash
 # Deploy / update:
@@ -199,31 +261,22 @@ ansible-playbook playbooks/deploy-monitoring.yml -e grafana_admin_password=MySec
 ansible-playbook playbooks/deploy-monitoring.yml -e monitoring_state=absent
 ```
 
+---
+
 ## Application Deployment
 
-The tradingo stack is deployed in two steps:
-
-### 1. Sync platform code to NFS
 ```bash
+# 1. Sync platform code to NFS:
 ansible-playbook playbooks/sync-platform.yml -e tradingo_plat_version=v1.2.0
-```
-Clones/updates `tradingo-plat` at the given git tag, then rsyncs DAGs, config, plugins, notebooks, and scripts to the appropriate NFS shares.
 
-### 2. Deploy Docker stack
-```bash
+# 2. Deploy Docker stack:
 ansible-playbook playbooks/deploy-stack.yml -e image_tag=v1.2.0
 
-# Separate image tags per service:
-ansible-playbook playbooks/deploy-stack.yml \
-  -e image_tag=v1.2.0 \
-  -e jupyter_tag=v1.2.0 \
-  -e monitor_tag=v1.2.0
-
-# Redeploy with current images (e.g. config-only change):
+# Redeploy with current images (config-only change):
 ansible-playbook playbooks/deploy-stack.yml -e image_tag=latest
 ```
 
-Images are pulled from the local registry (`localhost:5000`):
+Images pulled from local registry (`localhost:5000`):
 - `tradingo-plat-airflow:<tag>`
 - `tradingo-plat-jupyter:<tag>`
 - `tradingo-plat-monitor:<tag>`

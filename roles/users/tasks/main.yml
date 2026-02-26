@@ -67,7 +67,7 @@
 
 - name: Copy connecting user's authorized_keys to all ssh users
   ansible.builtin.copy:
-    src: "/home/{{ ansible_user }}/.ssh/authorized_keys"
+    src: "~{{ ansible_user }}/.ssh/authorized_keys"
     dest: "/home/{{ item }}/.ssh/authorized_keys"
     remote_src: true
     owner: "{{ item }}"
@@ -75,9 +75,11 @@
   loop: "{{ ssh_users }}"
   when: ansible_user != item
 
-- name: Grant admin passwordless sudo
+- name: Grant passwordless sudo to sudo group users
   ansible.builtin.copy:
-    content: "admin ALL=(ALL) NOPASSWD:ALL\n"
-    dest: /etc/sudoers.d/admin
+    content: "{{ item.username }} ALL=(ALL) NOPASSWD:ALL\n"
+    dest: "/etc/sudoers.d/{{ item.username }}"
     mode: "0440"
     validate: "visudo -cf %s"
+  loop: "{{ users }}"
+  when: "'sudo' in (item.extra_groups | default('') | split(',') | map('trim') | list)"
