@@ -1,0 +1,7 @@
+# /etc/cron.d/weekly-reboot
+# Managed by Ansible — do not edit manually
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Weekly reboot on Sunday at 02:30 (manager reboots after worker)
+30 2 * * 0  root  /sbin/reboot
