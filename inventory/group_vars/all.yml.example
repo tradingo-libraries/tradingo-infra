@@ -99,6 +99,9 @@ nfs_shares:
   - name: notebooks
     owner_group: research
     mode: "2775"
+  - name: jupyter_config
+    owner_group: research
+    mode: "2775"
   - name: scripts
     owner_group: service
     mode: "2775"

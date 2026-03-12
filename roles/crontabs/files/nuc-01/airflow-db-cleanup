@@ -1,0 +1,7 @@
+# /etc/cron.d/airflow-db-cleanup
+# Managed by Ansible — do not edit manually
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Trigger Airflow metadata DB cleanup weekly (Sunday 04:00 UTC)
+0 4 * * 0  root  docker service scale tradingo_airflow-db-cleanup=1 2>&1 | logger -t airflow-db-cleanup
