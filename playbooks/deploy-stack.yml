@@ -27,6 +27,7 @@
     registry_host: "localhost:5000"
     jupyter_tag: "{{ image_tag }}"
     monitor_tag: "{{ image_tag }}"
+    registry_keep_tags: 2
   tasks:
     - name: Validate image_tag is provided
       ansible.builtin.assert:
@@ -69,3 +70,16 @@
     - name: Show service status
       ansible.builtin.debug:
         msg: "{{ stack_services.stdout_lines }}"
+
+    # --- Registry cleanup: retain only the last N tags per repo ---
+
+    - name: Prune old registry tags
+      ansible.builtin.command:
+        cmd: registry-prune {{ registry_host }} {{ registry_keep_tags }}
+      register: prune_result
+      changed_when: "'DELETE' in prune_result.stdout"
+
+    - name: Show prune results
+      ansible.builtin.debug:
+        msg: "{{ prune_result.stdout_lines }}"
+      when: prune_result.stdout_lines | length > 0

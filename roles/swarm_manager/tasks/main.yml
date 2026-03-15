@@ -48,11 +48,29 @@
 
 # --- Docker Registry (infrastructure service, not part of app stack) ---
 
+- name: Create registry config directory
+  ansible.builtin.file:
+    path: /etc/docker/registry
+    state: directory
+    mode: "0755"
+
+- name: Template registry config
+  ansible.builtin.template:
+    src: registry-config.yml.j2
+    dest: /etc/docker/registry/config.yml
+    mode: "0644"
+  register: registry_config
+
 - name: Check if registry service exists
   ansible.builtin.command: docker service inspect registry
   register: registry_inspect
   changed_when: false
   failed_when: false
+
+- name: Remove registry service (config changed)
+  ansible.builtin.command: docker service rm registry
+  when: registry_inspect.rc == 0 and registry_config.changed
+  changed_when: true
 
 - name: Create registry service
   ansible.builtin.command: >
@@ -60,9 +78,30 @@
     --name registry
     --publish published=5000,target=5000
     --mount type=volume,source=registry-data,target=/var/lib/registry
+    --mount type=bind,source=/etc/docker/registry/config.yml,target=/etc/docker/registry/config.yml,readonly
     --constraint 'node.role == manager'
     --limit-memory 512M
     --restart-condition on-failure
     registry:2
-  when: registry_inspect.rc != 0
+  when: registry_inspect.rc != 0 or registry_config.changed
   changed_when: true
+
+# --- regctl (registry CLI) and pruning script ---
+
+- name: Install regctl
+  ansible.builtin.get_url:
+    url: "https://github.com/regclient/regclient/releases/latest/download/regctl-linux-amd64"
+    dest: /usr/local/bin/regctl
+    mode: "0755"
+  register: regctl_install
+
+- name: Configure regctl for local insecure registry
+  ansible.builtin.command: regctl registry set --tls disabled localhost:5000
+  changed_when: true
+  failed_when: false
+
+- name: Install registry prune script
+  ansible.builtin.copy:
+    src: registry-prune.sh
+    dest: /usr/local/bin/registry-prune
+    mode: "0755"
