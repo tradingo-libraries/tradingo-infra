@@ -1,11 +1,23 @@
 ---
-# playbooks/setup-wireguard.yml — Configure WireGuard peer on manager
+# playbooks/setup-wireguard.yml — Configure WireGuard peers on all swarm nodes
 # Usage: ansible-playbook playbooks/setup-wireguard.yml
 # Requires: setup-gateway.yml has been run first
+#
+# Bootstrap note: on first run for workers, ansible_host must be reachable via LAN.
+# Override with: -e "ansible_host=192.168.1.51" or set in hosts.yml temporarily.
 
 - name: Setup WireGuard peer on manager
   hosts: managers
   become: true
+  roles:
+    - role: wireguard_peer
+      tags: [wireguard]
+
+- name: Setup WireGuard peer on workers
+  hosts: workers
+  become: true
+  vars:
+    wg_peer_config_file: "client-{{ inventory_hostname }}.conf"
   roles:
     - role: wireguard_peer
       tags: [wireguard]

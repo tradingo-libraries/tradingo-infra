@@ -31,12 +31,13 @@ for repo in $repos; do
   fi
 
   # Sort tags by image creation time (newest first) so we keep the truly latest
-  sorted_tags=""
+  tag_entries=()
   for tag in $tags; do
     created=$(regctl image inspect "$ref:$tag" --format '{{.Created}}' 2>/dev/null || echo "1970-01-01T00:00:00Z")
-    sorted_tags="$sorted_tags $created|$tag"
+    created="${created// /_}"  # Replace spaces so sort isn't broken by Go timestamps
+    tag_entries+=("${created}|${tag}")
   done
-  sorted_tags=$(echo "$sorted_tags" | tr ' ' '\n' | sort -t'|' -k1 -r | grep -v '^$')
+  sorted_tags=$(printf '%s\n' "${tag_entries[@]}" | sort -t'|' -k1,1 -r)
 
   # Keep the first $KEEP, delete the rest
   i=0

@@ -6,4 +6,4 @@ monitoring_state: present
 
 grafana_admin_password: admin
 prometheus_retention: "30d"
-prometheus_retention_size: "5GB"
+prometheus_retention_size: "2GB"

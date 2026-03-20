@@ -1,18 +1,28 @@
 ---
 # roles/wireguard_peer/tasks/main.yml
-# Runs on the swarm manager (nuc-01)
-# Fetches the manager-peer.conf from the DO gateway and applies it
+# Runs on swarm nodes (managers and workers)
+# Fetches the peer config from the DO gateway and applies it
+#
+# Variables:
+#   wg_peer_config_file: name of the config file on the gateway (default: manager-peer.conf)
+#                        Workers use: client-<inventory_hostname>.conf
 
-- name: Fetch manager peer config from gateway
+- name: Install WireGuard
+  ansible.builtin.apt:
+    name: wireguard
+    state: present
+    update_cache: true
+
+- name: Fetch peer config from gateway
   ansible.builtin.fetch:
-    src: /etc/wireguard/manager-peer.conf
-    dest: /tmp/manager-peer.conf
+    src: /etc/wireguard/{{ wg_peer_config_file }}
+    dest: /tmp/{{ wg_peer_config_file }}
     flat: true
   delegate_to: gateway
 
 - name: Deploy WireGuard peer config
   ansible.builtin.copy:
-    src: /tmp/manager-peer.conf
+    src: /tmp/{{ wg_peer_config_file }}
     dest: "/etc/wireguard/{{ wg_interface }}.conf"
     mode: "0600"
   notify: restart wireguard peer
