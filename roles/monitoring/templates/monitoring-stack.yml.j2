@@ -39,6 +39,7 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
+    user: root
     networks:
       - monitoring
     ports:
@@ -46,6 +47,7 @@ services:
     volumes:
       - prometheus-data:/prometheus
       - {{ monitoring_config_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"

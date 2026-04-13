@@ -1,8 +1,10 @@
 ---
 - name: apply netplan
-  ansible.builtin.command: netplan apply
+  ansible.builtin.shell: sleep 2 && netplan apply
+  async: 30
+  poll: 0
 
 - name: restart sshd
   ansible.builtin.service:
-    name: sshd
+    name: ssh
     state: restarted

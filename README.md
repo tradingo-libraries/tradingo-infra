@@ -77,8 +77,7 @@ ansible-playbook playbooks/setup-gateway.yml -e ansible_user=root
 ansible-playbook playbooks/bootstrap-nodes.yml
 
 # 3. Configure WireGuard peer on nuc-01 — must be on LAN for first run
-ansible-playbook playbooks/setup-wireguard.yml \
-  -e ansible_host=192.168.1.50 --limit nuc-01
+ansible-playbook playbooks/setup-wireguard.yml -e ansible_host=192.168.1.50 --limit nuc-01
 
 # Verify tunnel is up, then all subsequent runs use WG IP from inventory:
 ansible nuc-01 -m ping

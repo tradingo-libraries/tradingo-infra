@@ -25,12 +25,18 @@
   register: wrong_name_user
   changed_when: false
 
+- name: Check if admin user already exists
+  ansible.builtin.shell: "getent passwd admin | cut -d: -f1"
+  register: admin_exists
+  changed_when: false
+
 - name: Rename install user to admin if needed
   ansible.builtin.command: >
     usermod -l admin -d /home/admin -m {{ wrong_name_user.stdout }}
   when:
     - wrong_name_user.stdout != ""
     - ansible_user != wrong_name_user.stdout
+    - admin_exists.stdout == ""
 
 - name: Create users
   ansible.builtin.user:

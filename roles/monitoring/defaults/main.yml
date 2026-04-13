@@ -4,6 +4,17 @@
 monitoring_config_dir: /opt/monitoring
 monitoring_state: present
 
+# IP of the host as reachable from inside Docker overlay containers.
+# Used to scrape host-bound services (docker-engine) from within the Prometheus container.
+# Find with: docker exec <prometheus-container> ip route | grep default
+monitoring_host_gateway: "10.10.1.1"
+
+# Docker gwbridge subnet — used for iptables rules allowing the Prometheus
+# container to reach host-bound ports (docker-engine metrics) on the manager.
+# Traffic to 10.10.1.1:9323 leaves the container via the gwbridge interface,
+# so the source IP seen by the host is in this subnet, not the overlay subnet.
+monitoring_overlay_subnet: "10.10.1.0/24"
+
 grafana_admin_password: admin
 prometheus_retention: "30d"
 prometheus_retention_size: "2GB"

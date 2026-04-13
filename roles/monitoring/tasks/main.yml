@@ -15,6 +15,27 @@
         path: "{{ monitoring_config_dir }}"
         state: absent
 
+- name: Allow Prometheus container to scrape docker-engine on manager
+  when: monitoring_state == "present" and inventory_hostname in groups['managers']
+  ansible.builtin.iptables:
+    chain: INPUT
+    source: "{{ monitoring_overlay_subnet }}"
+    protocol: tcp
+    destination_port: "9323"
+    jump: ACCEPT
+    comment: "Allow Prometheus overlay network to scrape docker-engine"
+
+- name: Install iptables-persistent for rule persistence
+  when: monitoring_state == "present" and inventory_hostname in groups['managers']
+  ansible.builtin.apt:
+    name: iptables-persistent
+    state: present
+
+- name: Persist iptables rules
+  when: monitoring_state == "present" and inventory_hostname in groups['managers']
+  ansible.builtin.shell: iptables-save > /etc/iptables/rules.v4
+  changed_when: false
+
 - name: Deploy monitoring stack
   when: monitoring_state == "present"
   block:

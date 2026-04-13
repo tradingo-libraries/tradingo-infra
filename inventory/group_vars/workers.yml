@@ -1,0 +1,4 @@
+---
+# Workers are on the LAN only — reach them via the manager as a jump host.
+# Requires: WireGuard connected (manager reachable at wg_manager_ip).
+ansible_ssh_common_args: "-J admin@{{ wg_manager_ip }}"
