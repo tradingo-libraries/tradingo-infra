@@ -1,0 +1,68 @@
+---
+# playbooks/promote-manager.yml — Promote nuc-05 to manager, demote nuc-01 to worker
+#
+# Prerequisites:
+#   - nuc-05 is bootstrapped and joined the swarm as a worker (init-swarm.yml -l nuc-05)
+#   - nuc-01 is still the current manager (groups['managers'][0] == nuc-01 before inventory flip)
+#
+# NOTE: Run this playbook with hosts.yml as edited in Phase 1, where nuc-05 is listed
+# in managers and nuc-01 is listed in workers. The first play targets nuc-01 directly
+# (as the still-active manager) using a hardcoded host reference.
+
+- name: Get manager join token from nuc-01 (current active manager)
+  hosts: nuc-01
+  become: true
+  tasks:
+    - name: Get manager join token
+      ansible.builtin.command: docker swarm join-token -q manager
+      register: manager_join_token
+      changed_when: false
+
+- name: Promote nuc-05 to manager
+  hosts: nuc-05
+  become: true
+  tasks:
+    - name: Check current swarm state
+      ansible.builtin.command: docker info --format '{{ "{{" }}.Swarm.LocalNodeState{{ "}}" }}'
+      register: swarm_state
+      changed_when: false
+
+    - name: Check if already a manager
+      ansible.builtin.command: docker info --format '{{ "{{" }}.Swarm.ControlAvailable{{ "}}" }}'
+      register: is_manager
+      changed_when: false
+      when: swarm_state.stdout == "active"
+
+    - name: Promote nuc-05 via manager join token (if currently a worker)
+      ansible.builtin.command: >
+        docker swarm join --token {{ hostvars['nuc-01'].manager_join_token.stdout }}
+        {{ hostvars['nuc-01'].static_ip }}:2377
+      when:
+        - swarm_state.stdout == "active"
+        - is_manager.stdout | default('false') == 'false'
+
+    - name: Apply nuc-05 labels (delegate to nuc-01 — still current manager)
+      ansible.builtin.command: >
+        docker node update
+        {% for key, value in swarm_labels.items() %}
+        --label-add {{ key }}={{ value }}
+        {% endfor %}
+        {{ hostname }}
+      delegate_to: nuc-01
+      changed_when: false
+
+- name: Demote nuc-01 to worker
+  hosts: nuc-01
+  become: true
+  tasks:
+    - name: Demote nuc-01
+      ansible.builtin.command: docker node demote nuc-01
+      changed_when: true
+
+    - name: Wait for nuc-01 role to become worker
+      ansible.builtin.command: docker node inspect nuc-01 --format '{{ "{{" }}.Spec.Role{{ "}}" }}'
+      register: nuc01_role
+      until: nuc01_role.stdout == "worker"
+      retries: 12
+      delay: 5
+      changed_when: false
