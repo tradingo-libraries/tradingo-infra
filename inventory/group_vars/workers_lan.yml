@@ -1,5 +1,0 @@
----
-# TRANSIENT — remove after Phase 3.12 WireGuard cutover
-# Clears the ProxyJump from workers.yml so workers are reached directly
-# over LAN (via static_ip in host_vars) during Phase 3.1–3.11.
-ansible_ssh_common_args: ""
