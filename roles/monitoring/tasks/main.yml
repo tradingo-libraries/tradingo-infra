@@ -77,6 +77,20 @@
         - node-exporter.json
         - docker-swarm.json
         - minio.json
+        - flower.json
+        - logs.json
+
+    - name: Template Loki config
+      ansible.builtin.template:
+        src: loki.yml.j2
+        dest: "{{ monitoring_config_dir }}/loki.yml"
+        mode: "0644"
+
+    - name: Template Promtail config
+      ansible.builtin.template:
+        src: promtail.yml.j2
+        dest: "{{ monitoring_config_dir }}/promtail.yml"
+        mode: "0644"
 
     - name: Template monitoring stack compose file
       ansible.builtin.template:

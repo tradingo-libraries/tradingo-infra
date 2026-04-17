@@ -69,7 +69,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "minio_cluster_health_drives_online_count",
+          "expr": "minio_cluster_drive_online_total",
           "legendFormat": "Drives Online",
           "range": false,
           "instant": true,
@@ -201,7 +201,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "minio_cluster_objects_count",
+          "expr": "minio_cluster_usage_object_total",
           "legendFormat": "Objects",
           "range": false,
           "instant": true,
@@ -248,7 +248,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "sum(rate(minio_s3_requests_total{api=~\"GetObject.*\"}[5m]))",
+          "expr": "sum(rate(minio_s3_requests_total{api=~\"getobject.*\"}[5m]))",
           "legendFormat": "GET",
           "range": true,
           "refId": "A"
@@ -256,7 +256,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "sum(rate(minio_s3_requests_total{api=~\"PutObject.*\"}[5m]))",
+          "expr": "sum(rate(minio_s3_requests_total{api=~\"putobject.*\"}[5m]))",
           "legendFormat": "PUT",
           "range": true,
           "refId": "B"
@@ -264,7 +264,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "sum(rate(minio_s3_requests_total{api=~\"HeadObject.*\"}[5m]))",
+          "expr": "sum(rate(minio_s3_requests_total{api=~\"headobject.*\"}[5m]))",
           "legendFormat": "HEAD",
           "range": true,
           "refId": "C"
@@ -272,7 +272,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "sum(rate(minio_s3_requests_total{api=~\"DeleteObject.*\"}[5m]))",
+          "expr": "sum(rate(minio_s3_requests_total{api=~\"deleteobject.*\"}[5m]))",
           "legendFormat": "DELETE",
           "range": true,
           "refId": "D"
@@ -280,7 +280,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "sum(rate(minio_s3_requests_total{api=~\"ListObjects.*\"}[5m]))",
+          "expr": "sum(rate(minio_s3_requests_total{api=~\"listobjects.*\"}[5m]))",
           "legendFormat": "LIST",
           "range": true,
           "refId": "E"
@@ -324,7 +324,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "sum(rate(minio_s3_requests_errors_total[5m]))",
+          "expr": "sum(rate(minio_s3_requests_rejected_auth_total[5m]) + rate(minio_s3_requests_rejected_invalid_total[5m]) + rate(minio_s3_requests_rejected_header_total[5m]) + rate(minio_s3_requests_rejected_timestamp_total[5m]))",
           "legendFormat": "Errors",
           "range": true,
           "refId": "A"
@@ -420,7 +420,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "sum(rate(minio_s3_requests_total{api=~\"GetObject.*\"}[5m])) / sum(rate(minio_s3_requests_total{api=~\"PutObject.*\"}[5m]))",
+          "expr": "sum(rate(minio_s3_requests_total{api=~\"getobject.*\"}[5m])) / sum(rate(minio_s3_requests_total{api=~\"putobject.*\"}[5m]))",
           "legendFormat": "GET:PUT ratio",
           "range": true,
           "refId": "A"
@@ -463,7 +463,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(minio_s3_time_ttfb_seconds_distribution{api=~\"GetObject.*\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(minio_s3_requests_ttfb_seconds_distribution{api=~\"getobject.*\"}[5m])) by (le))",
           "legendFormat": "GET p99",
           "range": true,
           "refId": "A"
@@ -471,7 +471,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum(rate(minio_s3_time_ttfb_seconds_distribution{api=~\"GetObject.*\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(minio_s3_requests_ttfb_seconds_distribution{api=~\"getobject.*\"}[5m])) by (le))",
           "legendFormat": "GET p50",
           "range": true,
           "refId": "B"
@@ -479,7 +479,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(minio_s3_time_ttfb_seconds_distribution{api=~\"PutObject.*\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(minio_s3_requests_ttfb_seconds_distribution{api=~\"putobject.*\"}[5m])) by (le))",
           "legendFormat": "PUT p99",
           "range": true,
           "refId": "C"
@@ -487,7 +487,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum(rate(minio_s3_time_ttfb_seconds_distribution{api=~\"PutObject.*\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(minio_s3_requests_ttfb_seconds_distribution{api=~\"putobject.*\"}[5m])) by (le))",
           "legendFormat": "PUT p50",
           "range": true,
           "refId": "D"
@@ -523,7 +523,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(minio_s3_time_ttfb_seconds_distribution[5m])) by (le, api))",
+          "expr": "histogram_quantile(0.99, sum(rate(minio_s3_requests_ttfb_seconds_distribution[5m])) by (le, api))",
           "legendFormat": "{{api}} p99",
           "range": true,
           "refId": "A"
@@ -653,7 +653,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "sum(minio_node_disk_used_bytes) / sum(minio_node_disk_total_bytes) * 100",
+          "expr": "(minio_cluster_capacity_raw_total_bytes - minio_cluster_capacity_raw_free_bytes) / minio_cluster_capacity_raw_total_bytes * 100",
           "legendFormat": "Disk Used %",
           "range": false,
           "instant": true,
