@@ -42,13 +42,6 @@
   loop_control:
     label: "{{ item.src }} → {{ nfs_export_base }}/{{ item.dest }}"
 
-- name: Copy docker-stack.yaml to deploy directory
-  ansible.builtin.copy:
-    src: "{{ tradingo_plat_clone_dir }}/docker-stack.yaml"
-    dest: "{{ nfs_export_base }}/docker-stack.yaml"
-    remote_src: true
-    mode: "0644"
-
 - name: Fix NFS export ownership
   ansible.builtin.file:
     path: "{{ nfs_export_base }}/{{ item.dest }}"

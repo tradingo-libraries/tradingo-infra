@@ -76,6 +76,7 @@
       loop:
         - node-exporter.json
         - docker-swarm.json
+        - minio.json
 
     - name: Template monitoring stack compose file
       ansible.builtin.template:

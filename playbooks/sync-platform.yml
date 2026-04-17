@@ -22,3 +22,25 @@
     - name: Include sync-repo tasks
       ansible.builtin.include_tasks:
         file: "{{ playbook_dir }}/../roles/nfs_server/tasks/sync-repo.yml"
+
+    - name: Fetch docker-stack.yaml to controller
+      ansible.builtin.fetch:
+        src: "{{ tradingo_plat_clone_dir }}/docker-stack.yaml"
+        dest: "/tmp/docker-stack.yaml"
+        flat: true
+
+- name: Deploy docker-stack.yaml to swarm manager
+  hosts: managers
+  become: true
+  tasks:
+    - name: Ensure stack deploy directory exists
+      ansible.builtin.file:
+        path: "{{ stack_deploy_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy docker-stack.yaml to manager
+      ansible.builtin.copy:
+        src: "/tmp/docker-stack.yaml"
+        dest: "{{ stack_deploy_dir }}/docker-stack.yaml"
+        mode: "0644"

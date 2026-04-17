@@ -20,6 +20,12 @@
   ansible.builtin.shell: rm -f /etc/netplan/*.yaml /etc/netplan/*.yml
   changed_when: true
 
+- name: Ensure systemd-networkd is enabled and started at boot
+  ansible.builtin.systemd:
+    name: systemd-networkd
+    enabled: true
+    state: started
+
 - name: Deploy netplan static IP config
   ansible.builtin.template:
     src: 01-static.yaml.j2

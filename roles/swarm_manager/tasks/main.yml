@@ -100,6 +100,11 @@
   changed_when: true
   failed_when: false
 
+- name: Configure regctl for insecure registry by IP
+  ansible.builtin.command: regctl registry set --tls disabled {{ registry_host }}
+  changed_when: true
+  failed_when: false
+
 - name: Install registry prune script
   ansible.builtin.copy:
     src: registry-prune.sh
