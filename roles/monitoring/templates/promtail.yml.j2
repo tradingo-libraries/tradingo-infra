@@ -25,21 +25,6 @@ scrape_configs:
       - source_labels: [__meta_docker_container_label_com_docker_stack_namespace]
         target_label: stack
       - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
-        regex: monitoring_loki|monitoring_promtail
+        regex: monitoring_.+
         action: drop
 
-  - job_name: airflow-task-logs
-    static_configs:
-      - targets: [localhost]
-        labels:
-          job: airflow-task-logs
-          service: tradingo_airflow-worker
-          __path__: /airflow-logs/dag_id=*/run_id=*/task_id=*/*.log
-    pipeline_stages:
-      - regex:
-          source: filename
-          expression: '/airflow-logs/dag_id=(?P<dag_id>[^/]+)/run_id=(?P<run_id>[^/]+)/task_id=(?P<task_id>[^/]+)/'
-      - labels:
-          dag_id:
-          run_id:
-          task_id:

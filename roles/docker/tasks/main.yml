@@ -53,6 +53,24 @@
     update_cache: true
   when: docker_check.rc != 0
 
+- name: Create Docker systemd drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    mode: "0755"
+
+- name: Deploy Docker systemd ulimits drop-in
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/ulimits.conf
+    content: |
+      [Service]
+      LimitNOFILE=65536
+      LimitNPROC=65536
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart docker
+
 - name: Deploy Docker daemon config
   ansible.builtin.copy:
     content: "{{ docker_daemon_config | to_nice_json }}\n"

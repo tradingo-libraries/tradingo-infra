@@ -1,4 +1,5 @@
 # /etc/exports — Managed by Ansible
 {% for share in nfs_shares %}
-{{ nfs_export_base }}/{{ share.name }}    {{ network_subnet }}(rw,sync,no_subtree_check,no_root_squash)
+{{ nfs_export_base }}/{{ share.name }}    {{ network_subnet }}(rw,sync,no_subtree_check,no_root_squash){% if nfs_mac_clients is defined %}{% for mac in nfs_mac_clients %} {{ mac.ip }}(rw,sync,no_subtree_check,all_squash,anonuid={{ mac.anonuid }},anongid={{ mac.anongid }}){% endfor %}{% endif %}
+
 {% endfor %}

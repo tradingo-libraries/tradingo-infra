@@ -61,6 +61,32 @@
         NFS_BASE: "{{ nfs_export_base }}"
       changed_when: true
 
+    # --- Wait for infrastructure services before Airflow starts pulling resources ---
+
+    - name: Wait for postgres to be healthy
+      ansible.builtin.command:
+        cmd: >
+          docker service ps {{ stack_name }}_postgres
+          --filter desired-state=running
+          --format "{{ '{{' }}.CurrentState{{ '}}' }}"
+      register: postgres_state
+      until: "'Running' in postgres_state.stdout"
+      retries: 18
+      delay: 10
+      changed_when: false
+
+    - name: Wait for redis to be healthy
+      ansible.builtin.command:
+        cmd: >
+          docker service ps {{ stack_name }}_redis
+          --filter desired-state=running
+          --format "{{ '{{' }}.CurrentState{{ '}}' }}"
+      register: redis_state
+      until: "'Running' in redis_state.stdout"
+      retries: 18
+      delay: 10
+      changed_when: false
+
     - name: Wait for services to converge
       ansible.builtin.command:
         cmd: docker stack services {{ stack_name }} --format "{{ '{{' }}.Name{{ '}}' }} {{ '{{' }}.Replicas{{ '}}' }}"

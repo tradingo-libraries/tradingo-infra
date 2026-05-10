@@ -49,6 +49,15 @@ scrape_configs:
       - targets: ["{{ monitoring_host_gateway }}:5555"]
         labels:
           instance: flower
+    metric_relabel_configs:
+      - source_labels: [worker]
+        regex: 'celery@(airflow-worker|tradingo-worker)-(.+)'
+        target_label: worker_type
+        replacement: '$1'
+      - source_labels: [worker]
+        regex: 'celery@(airflow-worker|tradingo-worker)-(.+)'
+        target_label: node
+        replacement: '$2'
 
   - job_name: minio
     metrics_path: /minio/v2/metrics/cluster

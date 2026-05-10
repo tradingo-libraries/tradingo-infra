@@ -76,6 +76,7 @@
     label: "{{ item.0 }} -> {{ item.1.name }}:{{ item.1.port }}"
   vars:
     service_ports:
+      - { port: "5000", name: "Docker Registry" }
       - { port: "8080", name: "Airflow" }
       - { port: "9000", name: "Minio API" }
       - { port: "9001", name: "Minio Console" }

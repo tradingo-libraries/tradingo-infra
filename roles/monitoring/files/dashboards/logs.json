@@ -73,7 +73,11 @@
         "type": "datasource"
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "tradingo_tradingo-worker",
+          "value": "tradingo_tradingo-worker"
+        },
         "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
         "definition": "label_values(service)",
         "hide": 0,

@@ -77,6 +77,12 @@ ssh_users:
 nfs_export_base: "/srv/nfs"
 nfs_mount_base: "/mnt/nfs"
 
+# Optional: Mac clients mapped to a server UID/GID (all_squash)
+# nfs_mac_clients:
+#   - ip: "192.168.1.x"
+#     anonuid: 1100
+#     anongid: 1100
+
 nfs_shares:
   - name: airflow_dags
     owner_group: research

@@ -13,6 +13,77 @@
 #   # Tear down:
 #   ansible-playbook playbooks/deploy-monitoring.yml -e monitoring_state=absent
 
+# Promtail runs as a global Swarm service — one instance per node.
+# The config file must exist on every node before Docker can start the container.
+- name: Deploy promtail config to all swarm nodes
+  hosts: swarm
+  become: true
+  vars:
+    monitoring_config_dir: /opt/monitoring
+  tasks:
+    - name: Create monitoring config directory
+      ansible.builtin.file:
+        path: "{{ monitoring_config_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Template Promtail config
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/monitoring/templates/promtail.yml.j2"
+        dest: "{{ monitoring_config_dir }}/promtail.yml"
+        mode: "0644"
+
+- name: Deploy Grafana/Prometheus/Loki config to nuc-02
+  hosts: nuc-02
+  become: true
+  vars:
+    monitoring_config_dir: /opt/monitoring
+    loki_retention: "30d"
+    grafana_admin_password: admin
+    minio_host: "192.168.1.51"
+    minio_port: 9000
+  tasks:
+    - name: Create monitoring config directories on nuc-02
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ monitoring_config_dir }}"
+        - "{{ monitoring_config_dir }}/grafana/datasources"
+        - "{{ monitoring_config_dir }}/grafana/dashboards"
+        - "{{ monitoring_config_dir }}/grafana/dashboard-json"
+
+    - name: Template Grafana datasource provisioning
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/monitoring/templates/datasource.yml.j2"
+        dest: "{{ monitoring_config_dir }}/grafana/datasources/datasource.yml"
+        mode: "0644"
+
+    - name: Template Grafana dashboard provisioning
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/monitoring/templates/dashboards.yml.j2"
+        dest: "{{ monitoring_config_dir }}/grafana/dashboards/dashboards.yml"
+        mode: "0644"
+
+    - name: Copy Grafana dashboard JSON files
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../roles/monitoring/files/dashboards/{{ item }}"
+        dest: "{{ monitoring_config_dir }}/grafana/dashboard-json/{{ item }}"
+        mode: "0644"
+      loop:
+        - node-exporter.json
+        - docker-swarm.json
+        - minio.json
+        - flower.json
+        - logs.json
+
+    - name: Template Loki config
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/monitoring/templates/loki.yml.j2"
+        dest: "{{ monitoring_config_dir }}/loki.yml"
+        mode: "0644"
+
 - name: Deploy monitoring stack
   hosts: managers
   become: true

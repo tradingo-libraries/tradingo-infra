@@ -76,7 +76,7 @@
   ansible.builtin.command: >
     docker service create
     --name registry
-    --publish published=5000,target=5000
+    --publish mode=host,published=5000,target=5000
     --mount type=volume,source=registry-data,target=/var/lib/registry
     --mount type=bind,source=/etc/docker/registry/config.yml,target=/etc/docker/registry/config.yml,readonly
     --constraint 'node.role == manager'
