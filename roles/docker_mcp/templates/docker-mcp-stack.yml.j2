@@ -1,0 +1,53 @@
+# {{ ansible_managed }}
+version: "3.8"
+
+services:
+  docker-mcp:
+    image: {{ docker_mcp_image }}
+    # Wrapper reads the Docker secret into MCP_ACCESS_TOKEN before handing off
+    # to the original entrypoint.sh (which starts uvicorn). The app uses
+    # os.getenv("MCP_ACCESS_TOKEN") directly and does not support _FILE suffix.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "export MCP_ACCESS_TOKEN=$$(cat /run/secrets/docker_mcp_access_token | tr -d '\\n') && exec /app/scripts/entrypoint.sh"
+    # group_add is not supported in Swarm mode. Run as root so the container
+    # can always access /var/run/docker.sock regardless of host docker GID.
+    user: "0:0"
+    environment:
+      LOG_LEVEL: {{ docker_mcp_log_level }}
+    secrets:
+      - docker_mcp_access_token
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - docker-mcp
+    ports:
+      - target: 8000
+        published: {{ docker_mcp_port }}
+        protocol: tcp
+        mode: ingress
+    healthcheck:
+      disable: true
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+
+secrets:
+  docker_mcp_access_token:
+    external: true
+
+networks:
+  docker-mcp:
+    driver: overlay
+    attachable: true

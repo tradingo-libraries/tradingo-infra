@@ -1,0 +1,8 @@
+---
+# roles/docker_mcp/defaults/main.yml
+
+docker_mcp_state: present
+docker_mcp_config_dir: /opt/docker-mcp
+docker_mcp_image: ghcr.io/khaentertainment/docker-swarm-mcp:latest
+docker_mcp_port: 8000
+docker_mcp_log_level: INFO

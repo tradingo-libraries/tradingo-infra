@@ -1,0 +1,54 @@
+---
+# playbooks/setup-docker-mcp.yml — Create the docker_mcp_access_token secret
+#
+# Run once before the first deploy, or to rotate the token.
+#
+# Usage:
+#   ansible-playbook playbooks/setup-docker-mcp.yml
+#   ansible-playbook playbooks/setup-docker-mcp.yml -e docker_mcp_token=my-secure-token
+#
+# If docker_mcp_token is not passed, the playbook prompts interactively.
+
+- name: Create docker_mcp_access_token secret
+  hosts: managers
+  become: true
+  vars_prompt:
+    - name: docker_mcp_token
+      prompt: "Enter MCP access token (leave empty to auto-generate)"
+      private: true
+      default: ""
+
+  tasks:
+    - name: Check if secret already exists
+      ansible.builtin.command:
+        cmd: docker secret inspect docker_mcp_access_token
+      register: secret_check
+      failed_when: false
+      changed_when: false
+
+    - name: Generate token if not provided
+      ansible.builtin.set_fact:
+        resolved_token: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
+      when: docker_mcp_token == ""
+
+    - name: Use provided token
+      ansible.builtin.set_fact:
+        resolved_token: "{{ docker_mcp_token }}"
+      when: docker_mcp_token != ""
+
+    - name: Remove existing secret (to allow rotation)
+      ansible.builtin.command:
+        cmd: docker secret rm docker_mcp_access_token
+      when: secret_check.rc == 0
+      changed_when: true
+
+    - name: Create docker_mcp_access_token secret
+      ansible.builtin.shell:
+        cmd: "printf '%s' {{ resolved_token | quote }} | docker secret create docker_mcp_access_token -"
+      changed_when: true
+      no_log: true
+
+    - name: Show token (save this now)
+      ansible.builtin.debug:
+        msg: "docker_mcp_access_token created. Token: {{ resolved_token }}"
+      when: docker_mcp_token == ""

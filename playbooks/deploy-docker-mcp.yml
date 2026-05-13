@@ -1,0 +1,23 @@
+---
+# playbooks/deploy-docker-mcp.yml — Deploy Docker Swarm MCP server
+#
+# Deploys ghcr.io/khaentertainment/docker-swarm-mcp as a standalone
+# Docker Swarm stack. Requires the docker_mcp_access_token secret to
+# exist first — run setup-docker-mcp.yml if it doesn't.
+#
+# Usage:
+#   ansible-playbook playbooks/deploy-docker-mcp.yml
+#
+#   # Override image or port:
+#   ansible-playbook playbooks/deploy-docker-mcp.yml \
+#     -e docker_mcp_image=ghcr.io/khaentertainment/docker-swarm-mcp:v1.2 \
+#     -e docker_mcp_port=8001
+#
+#   # Tear down:
+#   ansible-playbook playbooks/deploy-docker-mcp.yml -e docker_mcp_state=absent
+
+- name: Deploy docker-mcp stack
+  hosts: managers
+  become: true
+  roles:
+    - docker_mcp
