@@ -39,7 +39,7 @@
   vars:
     monitoring_config_dir: /opt/monitoring
     loki_retention: "30d"
-    grafana_admin_password: admin
+    grafana_admin_password: "admin"
     minio_host: "192.168.1.51"
     minio_port: 9000
   tasks:

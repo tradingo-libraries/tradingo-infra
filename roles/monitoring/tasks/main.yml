@@ -115,3 +115,69 @@
     - name: Show service status
       ansible.builtin.debug:
         msg: "{{ monitoring_services.stdout_lines }}"
+
+    - name: Wait for Grafana API to be ready
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/health"
+        status_code: 200
+      register: _grafana_health
+      until: _grafana_health.status == 200
+      retries: 30
+      delay: 5
+
+    - name: Ensure mcp-client service account exists
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/serviceaccounts"
+        method: POST
+        url_username: admin
+        url_password: "{{ grafana_admin_password }}"
+        force_basic_auth: true
+        body_format: json
+        body:
+          name: mcp-client
+          role: Viewer
+        status_code: [200, 201, 409]
+
+    - name: Fetch mcp-client service account
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/serviceaccounts/search?query=mcp-client&limit=1"
+        url_username: admin
+        url_password: "{{ grafana_admin_password }}"
+        force_basic_auth: true
+      register: _sa
+
+    - name: List existing tokens for mcp-client
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/serviceaccounts/{{ _sa.json.serviceAccounts[0].id }}/tokens"
+        url_username: admin
+        url_password: "{{ grafana_admin_password }}"
+        force_basic_auth: true
+      register: _tokens
+
+    - name: Delete stale mcp-deploy token
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/serviceaccounts/{{ _sa.json.serviceAccounts[0].id }}/tokens/{{ item.id }}"
+        method: DELETE
+        url_username: admin
+        url_password: "{{ grafana_admin_password }}"
+        force_basic_auth: true
+        status_code: [200, 204]
+      loop: "{{ _tokens.json | selectattr('name', 'equalto', 'mcp-deploy') | list }}"
+
+    - name: Create fresh mcp-deploy token
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/serviceaccounts/{{ _sa.json.serviceAccounts[0].id }}/tokens"
+        method: POST
+        url_username: admin
+        url_password: "{{ grafana_admin_password }}"
+        force_basic_auth: true
+        body_format: json
+        body:
+          name: mcp-deploy
+        status_code: [200, 201]
+      register: _token
+
+    - name: Inject API key into grafana-mcp service
+      ansible.builtin.command:
+        cmd: "docker service update --env-add GRAFANA_API_KEY={{ _token.json.key }} monitoring_grafana-mcp"
+      changed_when: true

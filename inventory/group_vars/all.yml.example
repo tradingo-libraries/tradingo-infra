@@ -85,22 +85,16 @@ nfs_mount_base: "/mnt/nfs"
 
 nfs_shares:
   - name: airflow_dags
-    owner_group: research
+    owner_group: root
     mode: "2775"
   - name: airflow_logs
-    owner_group: service
+    owner_group: root
     mode: "2775"
   - name: airflow_config
-    owner_group: service
+    owner_group: root
     mode: "2775"
   - name: airflow_plugins
-    owner_group: service
-    mode: "2775"
-  - name: tradingo_data
-    owner_group: service
-    mode: "2775"
-  - name: tradingo_backfills
-    owner_group: service
+    owner_group: root
     mode: "2775"
   - name: notebooks
     owner_group: research
@@ -108,8 +102,20 @@ nfs_shares:
   - name: jupyter_config
     owner_group: research
     mode: "2775"
+  - name: jupyter_home
+    owner_group: research
+    mode: "2775"
   - name: scripts
+    owner_group: research
+    mode: "2775"
+  - name: tradingo_config
     owner_group: service
+    mode: "2775"
+  - name: tradingo_data
+    owner_group: service
+    mode: "2775"
+  - name: tradingo_backfills
+    owner_group: root
     mode: "2775"
   - name: tradingo_src
     owner_group: research
@@ -120,9 +126,39 @@ nfs_shares:
   - name: research_data
     owner_group: research
     mode: "2775"
+  - name: research_configs
+    owner_group: research
+    mode: "2775"
+  - name: research_runs
+    owner_group: research
+    mode: "2775"
+  - name: miniflux_config
+    owner_group: root
+    mode: "2775"
   - name: shared
     owner_group: root
     mode: "1777"
+
+# --- Tradingo Platform ---
+tradingo_plat_repo: "git@github.com:rorymcstay/tradingo-plat.git"
+tradingo_plat_clone_dir: "/opt/tradingo-plat"
+# Map of repo directories to NFS share names
+tradingo_plat_sync_map:
+  - src: dags
+    dest: airflow_dags
+  - src: config/airflow
+    dest: airflow_config
+  - src: config/jupyter
+    dest: jupyter_config
+  - src: config/miniflux
+    dest: miniflux_config
+  - src: config/tradingo
+    dest: tradingo_config
+  - src: scripts
+    dest: scripts
+
+# --- Stack deployment ---
+stack_deploy_dir: "/opt/tradingo"
 
 # --- Docker ---
 docker_daemon_config:
