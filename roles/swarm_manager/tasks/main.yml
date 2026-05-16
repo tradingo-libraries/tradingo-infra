@@ -86,6 +86,28 @@
   when: registry_inspect.rc != 0 or registry_config.changed
   changed_when: true
 
+# --- Docker Registry Frontend ---
+
+- name: Check if registry-frontend service exists
+  ansible.builtin.command: docker service inspect registry-frontend
+  register: registry_frontend_inspect
+  changed_when: false
+  failed_when: false
+
+- name: Create registry-frontend service
+  ansible.builtin.command: >
+    docker service create
+    --name registry-frontend
+    --publish mode=host,published=5080,target=80
+    --env ENV_DOCKER_REGISTRY_HOST={{ registry_host.split(':')[0] }}
+    --env ENV_DOCKER_REGISTRY_PORT={{ registry_host.split(':')[1] }}
+    --constraint 'node.role == manager'
+    --limit-memory 128M
+    --restart-condition on-failure
+    konradkleine/docker-registry-frontend:v2
+  when: registry_frontend_inspect.rc != 0
+  changed_when: true
+
 # --- regctl (registry CLI) and pruning script ---
 
 - name: Install regctl

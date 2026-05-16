@@ -123,6 +123,32 @@ services:
         limits:
           memory: 128M
 
+  grafana-mcp:
+    image: grafana/mcp-grafana:latest
+    networks:
+      - monitoring
+    ports:
+      - "8766:8000"
+    environment:
+      GRAFANA_URL: "{{ grafana_url }}"
+      GRAFANA_API_KEY: "{{ grafana_api_key | default('') }}"
+    stop_grace_period: 30s
+    entrypoint:
+      - "/app/mcp-grafana"
+      - "--transport"
+      - "streamable-http"
+      - "--address"
+      - "0.0.0.0:8000"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.node == nuc-02
+      resources:
+        limits:
+          memory: 128M
+
 networks:
   monitoring:
     external: true

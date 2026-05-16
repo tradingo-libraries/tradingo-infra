@@ -29,6 +29,7 @@ services:
         mode: ingress
     healthcheck:
       disable: true
+    stop_grace_period: 30s
     deploy:
       replicas: 1
       placement:

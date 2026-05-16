@@ -14,7 +14,8 @@
 #     -e image_tag=v1.2.0 \
 #     -e jupyter_tag=v1.2.0 \
 #     -e monitor_tag=v1.2.0 \
-#     -e mcp_tag=v1.2.0
+#     -e mcp_tag=v1.2.0 \
+#     -e claude_tag=v1.2.0
 #
 #   # Just redeploy current stack (e.g. after config-only change):
 #   ansible-playbook playbooks/deploy-stack.yml -e image_tag=latest
@@ -29,6 +30,7 @@
     jupyter_tag: "{{ image_tag }}"
     monitor_tag: "{{ image_tag }}"
     mcp_tag: "{{ image_tag }}"
+    claude_tag: "{{ image_tag }}"
     registry_keep_tags: 2
   tasks:
     - name: Validate image_tag is provided
@@ -60,6 +62,7 @@
         JUPYTER_IMAGE: "{{ registry_host }}/tradingo-plat-jupyter:{{ jupyter_tag }}"
         MONITOR_IMAGE: "{{ registry_host }}/tradingo-plat-monitor:{{ monitor_tag }}"
         MCP_IMAGE: "{{ registry_host }}/tradingo-plat-mcp:{{ mcp_tag }}"
+        CLAUDE_IMAGE: "{{ registry_host }}/tradingo-plat-airflow-claude:{{ claude_tag }}"
         NFS_SERVER: "{{ hostvars[groups['nfs_servers'][0]].static_ip }}"
         NFS_BASE: "{{ nfs_export_base }}"
       changed_when: true
