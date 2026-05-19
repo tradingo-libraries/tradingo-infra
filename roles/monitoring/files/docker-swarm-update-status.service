@@ -1,0 +1,8 @@
+[Unit]
+Description=Collect Docker Swarm service update status for node_exporter textfile
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/docker-swarm-update-status.sh

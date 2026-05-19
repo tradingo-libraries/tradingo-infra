@@ -1,0 +1,6 @@
+---
+- name: Restart docker-swarm-update-status timer
+  ansible.builtin.systemd:
+    name: docker-swarm-update-status.timer
+    state: restarted
+    daemon_reload: true

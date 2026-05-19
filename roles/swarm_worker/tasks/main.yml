@@ -22,3 +22,42 @@
     {{ hostname }}
   delegate_to: "{{ groups['managers'][0] }}"
   changed_when: false
+
+# --- BuildKit / buildx builder (nuc-01 only — build host) ---
+
+- name: Create buildkit config directory
+  ansible.builtin.file:
+    path: /etc/buildkit
+    state: directory
+    mode: "0755"
+  when: inventory_hostname == 'nuc-01'
+
+- name: Deploy buildkitd config
+  ansible.builtin.template:
+    src: buildkitd.toml.j2
+    dest: /etc/buildkit/buildkitd.toml
+    mode: "0644"
+  register: buildkitd_config
+  when: inventory_hostname == 'nuc-01'
+
+- name: Check if buildx builder exists
+  ansible.builtin.command: docker buildx inspect tradingo-builder
+  register: builder_inspect
+  changed_when: false
+  failed_when: false
+  when: inventory_hostname == 'nuc-01'
+
+- name: Remove buildx builder (config changed)
+  ansible.builtin.command: docker buildx rm tradingo-builder
+  when: inventory_hostname == 'nuc-01' and builder_inspect.rc == 0 and buildkitd_config.changed
+  changed_when: true
+
+- name: Create buildx builder
+  ansible.builtin.command: >
+    docker buildx create
+    --name tradingo-builder
+    --driver docker-container
+    --config /etc/buildkit/buildkitd.toml
+    --bootstrap
+  when: inventory_hostname == 'nuc-01' and (builder_inspect.rc != 0 or buildkitd_config.changed)
+  changed_when: true

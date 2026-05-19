@@ -36,6 +36,47 @@
   ansible.builtin.shell: iptables-save > /etc/iptables/rules.v4
   changed_when: false
 
+- name: Create node_exporter textfile collector directory on all swarm nodes
+  when: monitoring_state == "present"
+  ansible.builtin.file:
+    path: /var/lib/node_exporter/textfile_collector
+    state: directory
+    mode: "0755"
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['swarm'] }}"
+
+- name: Deploy Docker Swarm update status script
+  when: monitoring_state == "present" and inventory_hostname in groups['managers']
+  ansible.builtin.copy:
+    src: docker-swarm-update-status.sh
+    dest: /usr/local/bin/docker-swarm-update-status.sh
+    mode: "0755"
+  notify: Restart docker-swarm-update-status timer
+
+- name: Deploy Docker Swarm update status systemd service
+  when: monitoring_state == "present" and inventory_hostname in groups['managers']
+  ansible.builtin.copy:
+    src: docker-swarm-update-status.service
+    dest: /etc/systemd/system/docker-swarm-update-status.service
+    mode: "0644"
+  notify: Restart docker-swarm-update-status timer
+
+- name: Deploy Docker Swarm update status systemd timer
+  when: monitoring_state == "present" and inventory_hostname in groups['managers']
+  ansible.builtin.copy:
+    src: docker-swarm-update-status.timer
+    dest: /etc/systemd/system/docker-swarm-update-status.timer
+    mode: "0644"
+  notify: Restart docker-swarm-update-status timer
+
+- name: Enable and start Docker Swarm update status timer
+  when: monitoring_state == "present" and inventory_hostname in groups['managers']
+  ansible.builtin.systemd:
+    name: docker-swarm-update-status.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+
 - name: Deploy monitoring stack
   when: monitoring_state == "present"
   block:
@@ -136,7 +177,7 @@
         body:
           name: mcp-client
           role: Viewer
-        status_code: [200, 201, 409]
+        status_code: [200, 201, 400, 409]
 
     - name: Fetch mcp-client service account
       ansible.builtin.uri:

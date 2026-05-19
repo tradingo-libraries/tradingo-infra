@@ -344,7 +344,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Current snapshot of all Swarm services: replica count, CPU, memory, and age of newest replica",
+      "description": "Current snapshot of all Swarm services: replica count, image version, CPU, memory, and age of newest replica",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -360,6 +360,47 @@
           }
         },
         "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Service" },
+            "properties": [{ "id": "custom.width", "value": 220 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Image" },
+            "properties": [
+              { "id": "custom.width", "value": 380 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Update State" },
+            "properties": [
+              { "id": "custom.width", "value": 130 },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-text" }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "idle":               { "color": "green",  "index": 0, "text": "idle" },
+                      "completed":          { "color": "green",  "index": 1, "text": "completed" },
+                      "updating":           { "color": "orange", "index": 2, "text": "updating" },
+                      "rollback_started":   { "color": "orange", "index": 3, "text": "rollback started" },
+                      "paused":             { "color": "red",    "index": 4, "text": "paused" },
+                      "rollback_paused":    { "color": "red",    "index": 5, "text": "rollback paused" },
+                      "rollback_completed": { "color": "blue",   "index": 6, "text": "rollback completed" }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Replicas" },
+            "properties": [{ "id": "custom.width", "value": 80 }]
+          },
           {
             "matcher": { "id": "byName", "options": "CPU %" },
             "properties": [
@@ -395,14 +436,6 @@
               { "id": "unit", "value": "s" },
               { "id": "custom.width", "value": 140 }
             ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "Replicas" },
-            "properties": [{ "id": "custom.width", "value": 80 }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "Service" },
-            "properties": [{ "id": "custom.width", "value": 220 }]
           }
         ]
       },
@@ -459,6 +492,28 @@
           "legendFormat": "__auto",
           "range": false,
           "refId": "D"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "group by (container_label_com_docker_swarm_service_name, image) (container_last_seen{container_label_com_docker_swarm_service_name=~\"$service_name\", instance=~\"$instance\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "E"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "group by (container_label_com_docker_swarm_service_name, update_state) (docker_service_update_state{container_label_com_docker_swarm_service_name=~\"$service_name\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "F"
         }
       ],
       "title": "Service Overview",
@@ -472,17 +527,25 @@
               "Time 1": true,
               "Time 2": true,
               "Time 3": true,
-              "Time 4": true
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Value #E": true,
+              "Value #F": true
             },
             "indexByName": {
               "container_label_com_docker_swarm_service_name": 0,
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4
+              "image": 1,
+              "update_state": 2,
+              "Value #A": 3,
+              "Value #B": 4,
+              "Value #C": 5,
+              "Value #D": 6
             },
             "renameByName": {
               "container_label_com_docker_swarm_service_name": "Service",
+              "image": "Image",
+              "update_state": "Update State",
               "Value #A": "Replicas",
               "Value #B": "CPU %",
               "Value #C": "Memory",
@@ -1192,6 +1255,6 @@
   "timezone": "",
   "title": "Docker Swarm",
   "uid": "docker-swarm",
-  "version": 2,
+  "version": 4,
   "weekStart": ""
 }

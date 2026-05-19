@@ -79,7 +79,7 @@
     --publish mode=host,published=5000,target=5000
     --mount type=volume,source=registry-data,target=/var/lib/registry
     --mount type=bind,source=/etc/docker/registry/config.yml,target=/etc/docker/registry/config.yml,readonly
-    --constraint 'node.role == manager'
+    --constraint 'node.hostname == nuc-01'
     --limit-memory 512M
     --restart-condition on-failure
     registry:2
@@ -101,7 +101,7 @@
     --publish mode=host,published=5080,target=80
     --env ENV_DOCKER_REGISTRY_HOST={{ registry_host.split(':')[0] }}
     --env ENV_DOCKER_REGISTRY_PORT={{ registry_host.split(':')[1] }}
-    --constraint 'node.role == manager'
+    --constraint 'node.hostname == nuc-01'
     --limit-memory 128M
     --restart-condition on-failure
     konradkleine/docker-registry-frontend:v2
@@ -127,6 +127,7 @@
   changed_when: true
   failed_when: false
 
+  # FIXME this is required on the nuc-01/elected registry host
 - name: Install registry prune script
   ansible.builtin.copy:
     src: registry-prune.sh

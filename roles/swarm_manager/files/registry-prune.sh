@@ -34,15 +34,19 @@ for repo in $repos; do
   tag_entries=()
   for tag in $tags; do
     created=$(regctl image inspect "$ref:$tag" --format '{{.Created}}' 2>/dev/null || echo "1970-01-01T00:00:00Z")
-    created="${created// /_}"  # Replace spaces so sort isn't broken by Go timestamps
+    created="${created// /_}" # Replace spaces so sort isn't broken by Go timestamps
     tag_entries+=("${created}|${tag}")
   done
   sorted_tags=$(printf '%s\n' "${tag_entries[@]}" | sort -t'|' -k1,1 -r)
 
-  # Keep the first $KEEP, delete the rest
+  # Keep the first $KEEP and always keep 'latest', delete the rest
   i=0
   for entry in $sorted_tags; do
     tag="${entry#*|}"
+    if [ "$tag" = "latest" ]; then
+      echo "[$repo] KEEP $tag (pinned)"
+      continue
+    fi
     i=$((i + 1))
     if [ "$i" -le "$KEEP" ]; then
       echo "[$repo] KEEP $tag"
@@ -55,5 +59,6 @@ done
 
 echo ""
 echo "Running garbage collection to reclaim disk space..."
-docker exec $(docker ps -q -f name=registry) /bin/registry garbage-collect --delete-untagged /etc/docker/registry/config.yml
+REGISTRY_CONTAINER=$(docker ps --format '{{.ID}} {{.Names}}' | awk '$2 ~ /^registry\./ {print $1; exit}')
+docker exec "$REGISTRY_CONTAINER" /bin/registry garbage-collect --delete-untagged /etc/docker/registry/config.yml
 echo "Done."
