@@ -67,6 +67,20 @@
         NFS_BASE: "{{ nfs_export_base }}"
       changed_when: true
 
+    # Wait for dask-scheduler to be stable before dask-workers restart so they
+    # don't fail their initial connection and burn through max_attempts.
+    - name: Wait for dask-scheduler to be running
+      ansible.builtin.command:
+        cmd: >
+          docker service ps {{ stack_name }}_dask-scheduler
+          --filter desired-state=running
+          --format "{{ '{{' }}.CurrentState{{ '}}' }}"
+      register: dask_sched_state
+      until: "'Running' in dask_sched_state.stdout"
+      retries: 24
+      delay: 10
+      changed_when: false
+
     # --- Wait for infrastructure services before Airflow starts pulling resources ---
 
     - name: Wait for postgres to be healthy

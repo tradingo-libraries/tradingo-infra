@@ -66,6 +66,27 @@ scrape_configs:
         labels:
           instance: nuc-02
 
+  - job_name: postgres-exporter
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: tasks
+        filters:
+          - name: service
+            values: ["monitoring_postgres-exporter"]
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
+        action: keep
+      - source_labels: [__meta_dockerswarm_network_name]
+        regex: monitoring
+        action: keep
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+      - source_labels: [__address__]
+        regex: '([^:]+)(?::\d+)?'
+        target_label: __address__
+        replacement: '${1}:9187'
+
   - job_name: docker-engine
     static_configs:
       - targets:

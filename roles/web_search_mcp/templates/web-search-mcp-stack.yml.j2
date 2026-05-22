@@ -1,0 +1,38 @@
+# {{ ansible_managed }}
+version: "3.8"
+
+services:
+  web-search-mcp:
+    image: {{ web_search_mcp_image }}
+    environment:
+      DDG_SAFE_SEARCH: "MODERATE"
+    networks:
+      - tradingo-backend
+    ports:
+      - target: 8768
+        published: {{ web_search_mcp_port }}
+        protocol: tcp
+        mode: ingress
+    healthcheck:
+      disable: true
+    stop_grace_period: 30s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.workload == platform
+      restart_policy:
+        condition: any
+        delay: 10s
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+
+# Attach to the tradingo stack's backend network so the Claude worker
+# can reach this service by DNS name (web-search-mcp_web-search-mcp).
+networks:
+  tradingo-backend:
+    external: true
+    name: tradingo_tradingo-backend

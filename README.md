@@ -132,37 +132,39 @@ cp inventory/group_vars/all.yml.example inventory/group_vars/all.yml
 
 ## Day-to-Day Operations
 
+All `make` commands run from the **repo root** (the root `Makefile` wraps all Ansible playbooks).
+
 ```bash
 # Check cluster health:
-make cluster-status
+make status
+
+# Build images + update lock + push to registry:
+make build TAG=<version>
+
+# Sync platform config to NFS + deploy:
+make deploy TAG=<version>
 
 # Deploy / update monitoring stack:
 make deploy-monitoring
-
-# Sync platform config to NFS (DAGs, tradingo config, scripts):
-make sync-platform
-
-# Deploy application stack with a specific image tag:
-make deploy tag=v1.2.0
 
 # Deploy / update Docker MCP stack:
 make deploy-docker-mcp
 
 # Add a new WireGuard client:
-ansible-playbook playbooks/add-wg-client.yml -e wg_client_name=laptop
+cd tradingo-infra && ansible-playbook playbooks/add-wg-client.yml -e wg_client_name=laptop
 
 # Add a new user to all swarm nodes:
 #   1. Add entry to users list in inventory/group_vars/all.yml
 #   2. Run:
-ansible-playbook playbooks/bootstrap-nodes.yml --tags users
+cd tradingo-infra && ansible-playbook playbooks/bootstrap-nodes.yml --tags users
 
 # Add a new NUC worker:
 #   1. Add to inventory/hosts.yml under workers
 #   2. Run:
-ansible-playbook playbooks/site.yml --limit nuc-XX
+cd tradingo-infra && ansible-playbook playbooks/site.yml --limit nuc-XX
 
 # Rotate the IG API key across Swarm services:
-cd ../tradingo-plat && ./scripts/rotate-ig-api-key.sh
+cd tradingo-plat && ./scripts/rotate-ig-api-key.sh
 ```
 
 ---

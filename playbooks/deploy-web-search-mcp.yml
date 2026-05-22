@@ -1,0 +1,26 @@
+---
+# playbooks/deploy-web-search-mcp.yml — Build and deploy web-search-mcp
+#
+# Builds a Docker image from roles/web_search_mcp/files/Dockerfile on the
+# manager node, pushes it to the local registry, then deploys it as a
+# standalone Swarm stack attached to the tradingo_tradingo-backend network.
+#
+# The service wraps web-search-mcp-server (stdio) with supergateway, exposing
+# SSE at http://web-search-mcp_web-search-mcp:8768/sse on the shared network.
+#
+# Usage:
+#   ansible-playbook playbooks/deploy-web-search-mcp.yml
+#
+#   # Override image or port:
+#   ansible-playbook playbooks/deploy-web-search-mcp.yml \
+#     -e web_search_mcp_image=192.168.1.50:5000/web-search-mcp:v1 \
+#     -e web_search_mcp_port=8769
+#
+#   # Tear down:
+#   ansible-playbook playbooks/deploy-web-search-mcp.yml -e web_search_mcp_state=absent
+
+- name: Deploy web-search-mcp stack
+  hosts: managers
+  become: true
+  roles:
+    - web_search_mcp

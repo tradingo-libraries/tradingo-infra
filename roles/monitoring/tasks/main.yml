@@ -120,6 +120,7 @@
         - minio.json
         - flower.json
         - logs.json
+        - postgres.json
 
     - name: Template Loki config
       ansible.builtin.template:

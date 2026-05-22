@@ -1,0 +1,7 @@
+---
+# roles/web_search_mcp/defaults/main.yml
+
+web_search_mcp_state: present
+web_search_mcp_config_dir: /opt/web-search-mcp
+web_search_mcp_image: "{{ registry_host }}/web-search-mcp:latest"
+web_search_mcp_port: 8768

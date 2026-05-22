@@ -125,6 +125,30 @@ services:
         limits:
           memory: 128M
 
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        export DATA_SOURCE_NAME="postgresql://service:$$(cat /run/secrets/postgres_password | tr -d '\n')@postgres/postgres?sslmode=disable"
+        exec /bin/postgres_exporter
+    secrets:
+      - postgres_password
+    networks:
+      - monitoring
+      - tradingo_tradingo-backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+
   grafana-mcp:
     image: grafana/mcp-grafana:latest
     networks:
@@ -153,6 +177,12 @@ services:
 
 networks:
   monitoring:
+    external: true
+  tradingo_tradingo-backend:
+    external: true
+
+secrets:
+  postgres_password:
     external: true
 
 volumes:
