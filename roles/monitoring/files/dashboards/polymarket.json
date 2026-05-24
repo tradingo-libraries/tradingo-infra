@@ -1,0 +1,800 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "tags": [
+    "polymarket"
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "Polymarket Markets",
+  "uid": "polymarket-markets",
+  "version": 2,
+  "templating": {
+    "list": [
+      {
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse-polymarket"
+        },
+        "definition": "SELECT concat(market, ' - ', outcome) FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND asset_id IN (SELECT DISTINCT asset_id FROM quotes) ORDER BY market, outcome LIMIT 500",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Outcome",
+        "multi": false,
+        "name": "market_label",
+        "options": [],
+        "query": {
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT concat(market, ' - ', outcome) FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND asset_id IN (SELECT DISTINCT asset_id FROM quotes) ORDER BY market, outcome LIMIT 500",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse-polymarket"
+        },
+        "definition": "SELECT market_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND asset_id IN (SELECT DISTINCT asset_id FROM quotes) GROUP BY market_id ORDER BY market_id LIMIT 500",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Market ID",
+        "multi": false,
+        "name": "market_id",
+        "options": [],
+        "query": {
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT market_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND asset_id IN (SELECT DISTINCT asset_id FROM quotes) GROUP BY market_id ORDER BY market_id LIMIT 500",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse-polymarket"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 4,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.4
+              },
+              {
+                "color": "green",
+                "value": 0.6
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse-polymarket"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT mid FROM quotes WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) = '${market_label}' LIMIT 1) ORDER BY ts DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Mid Price",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse-polymarket"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 4,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse-polymarket"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT bid FROM quotes WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) = '${market_label}' LIMIT 1) ORDER BY ts DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Best Bid",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse-polymarket"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 4,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse-polymarket"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT ask FROM quotes WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) = '${market_label}' LIMIT 1) ORDER BY ts DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Best Ask",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse-polymarket"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 4,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.05
+              },
+              {
+                "color": "red",
+                "value": 0.1
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse-polymarket"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT spread FROM quotes WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) = '${market_label}' LIMIT 1) ORDER BY ts DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Spread",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse-polymarket"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisLabel": "Probability",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 5,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 4,
+          "max": 1,
+          "min": 0,
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "bid"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ask"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mid"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse-polymarket"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT ts AS time, bid, ask, mid FROM quotes WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) = '${market_label}' LIMIT 1) AND $__timeFilter(ts) ORDER BY ts ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Price History — Bid / Ask / Mid",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse-polymarket"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisLabel": "Spread",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 1,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 4,
+          "min": 0,
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse-polymarket"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT ts AS time, spread FROM quotes WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) = '${market_label}' LIMIT 1) AND $__timeFilter(ts) ORDER BY ts ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Bid-Ask Spread",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse-polymarket"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "side"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "BUY": {
+                        "color": "green",
+                        "index": 0,
+                        "text": "BUY"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "SELL": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "SELL"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "price"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "size"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "notional"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "id": 7,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "ts"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse-polymarket"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT ts, side, price, size, round(price * size, 4) AS notional FROM trades WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) = '${market_label}' LIMIT 1) AND $__timeFilter(ts) ORDER BY ts ASC LIMIT 200",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent Trades",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse-polymarket"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisLabel": "Events",
+            "axisPlacement": "auto",
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "add"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "remove"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "update"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse-polymarket"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT $__timeInterval(ts) AS time, sumIf(1, event_type = 'add') AS add, sumIf(1, event_type = 'remove') AS remove, sumIf(1, event_type = 'update') AS update FROM order_events WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) = '${market_label}' LIMIT 1) AND $__timeFilter(ts) GROUP BY time ORDER BY time ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Order Book Events",
+      "type": "timeseries"
+    }
+  ]
+}

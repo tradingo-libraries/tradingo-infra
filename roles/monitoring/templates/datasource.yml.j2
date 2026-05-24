@@ -15,6 +15,18 @@ datasources:
     url: http://loki:3100
     editable: false
 
+  - name: ClickHouse
+    type: grafana-clickhouse-datasource
+    uid: clickhouse-polymarket
+    jsonData:
+      server: clickhouse
+      port: 8123
+      username: default
+      defaultDatabase: polymarket
+      protocol: http
+    secureJsonData:
+      password: "{{ clickhouse_password }}"
+
   - name: Tempo
     type: tempo
     access: proxy

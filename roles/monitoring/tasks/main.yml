@@ -123,6 +123,18 @@
         - postgres.json
         - tempo.json
 
+    - name: Create polymarket dashboard directory
+      ansible.builtin.file:
+        path: "{{ monitoring_config_dir }}/grafana/dashboard-json/polymarket"
+        state: directory
+        mode: "0755"
+
+    - name: Copy polymarket dashboard JSON
+      ansible.builtin.copy:
+        src: dashboards/polymarket.json
+        dest: "{{ monitoring_config_dir }}/grafana/dashboard-json/polymarket/polymarket.json"
+        mode: "0644"
+
     - name: Template Loki config
       ansible.builtin.template:
         src: loki.yml.j2

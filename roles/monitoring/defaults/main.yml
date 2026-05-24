@@ -30,3 +30,5 @@ loki_storage_size: "10GB"
 tempo_retention: "720h"
 minio_access_key: "minioadmin"
 minio_secret_key: "minioadmin"
+
+clickhouse_password: "admin"

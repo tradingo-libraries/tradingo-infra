@@ -78,8 +78,10 @@ services:
       - {{ monitoring_config_dir }}/grafana/datasources:/etc/grafana/provisioning/datasources:ro
       - {{ monitoring_config_dir }}/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - {{ monitoring_config_dir }}/grafana/dashboard-json:/etc/grafana/dashboards:ro
+      - {{ monitoring_config_dir }}/grafana/dashboard-json/polymarket:/etc/grafana/dashboards/polymarket:ro
     environment:
       GF_SECURITY_ADMIN_PASSWORD: "{{ grafana_admin_password }}"
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
     deploy:
       mode: replicated
       replicas: 1

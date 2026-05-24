@@ -42,6 +42,7 @@
     grafana_admin_password: "admin"
     minio_host: "192.168.1.51"
     minio_port: 9000
+    clickhouse_password: "admin"
   tasks:
     - name: Create monitoring config directories on nuc-02
       ansible.builtin.file:
@@ -53,6 +54,7 @@
         - "{{ monitoring_config_dir }}/grafana/datasources"
         - "{{ monitoring_config_dir }}/grafana/dashboards"
         - "{{ monitoring_config_dir }}/grafana/dashboard-json"
+        - "{{ monitoring_config_dir }}/grafana/dashboard-json/polymarket"
 
     - name: Template Grafana datasource provisioning
       ansible.builtin.template:
@@ -78,6 +80,12 @@
         - flower.json
         - logs.json
         - tempo.json
+
+    - name: Copy polymarket dashboard JSON
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../roles/monitoring/files/dashboards/polymarket.json"
+        dest: "{{ monitoring_config_dir }}/grafana/dashboard-json/polymarket/polymarket.json"
+        mode: "0644"
 
     - name: Template Loki config
       ansible.builtin.template:
