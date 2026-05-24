@@ -149,6 +149,29 @@ services:
         condition: on-failure
         delay: 10s
 
+  tempo:
+    image: grafana/tempo:latest
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    networks:
+      - monitoring
+      - tradingo_tradingo-backend
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - tempo-data:/var/tempo
+      - {{ monitoring_config_dir }}/tempo.yml:/etc/tempo/tempo.yml:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.node == nuc-02
+      resources:
+        limits:
+          memory: 1G
+
   grafana-mcp:
     image: grafana/mcp-grafana:latest
     networks:
@@ -189,3 +212,4 @@ volumes:
   prometheus-data:
   grafana-data:
   loki-data:
+  tempo-data:

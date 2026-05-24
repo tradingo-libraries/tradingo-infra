@@ -26,3 +26,7 @@ prometheus_retention_size: "60GB"
 
 loki_retention: "30d"
 loki_storage_size: "10GB"
+
+tempo_retention: "720h"
+minio_access_key: "minioadmin"
+minio_secret_key: "minioadmin"

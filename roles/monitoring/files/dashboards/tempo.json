@@ -1,0 +1,151 @@
+{
+  "title": "Tempo — Distributed Traces",
+  "uid": "tradingo-tempo",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 3,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["tempo", "traces", "tradingo"],
+  "description": "Distributed traces from all Tradingo services via OpenTelemetry → Tempo",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "annotations": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": "All", "value": ".*" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Service",
+        "multi": false,
+        "name": "service",
+        "options": [
+          { "selected": true,  "text": "All",                    "value": ".*" },
+          { "selected": false, "text": "airflow-scheduler",       "value": "airflow-scheduler" },
+          { "selected": false, "text": "airflow-dag-processor",   "value": "airflow-dag-processor" },
+          { "selected": false, "text": "airflow-triggerer",       "value": "airflow-triggerer" },
+          { "selected": false, "text": "airflow-apiserver",       "value": "airflow-apiserver" },
+          { "selected": false, "text": "airflow-worker",          "value": "airflow-worker" },
+          { "selected": false, "text": "airflow-worker-claude",   "value": "airflow-worker-claude" },
+          { "selected": false, "text": "tradingo-worker",         "value": "tradingo-worker" },
+          { "selected": false, "text": "tradingo-mcp",            "value": "tradingo-mcp" }
+        ],
+        "query": "All : .*,airflow-scheduler : airflow-scheduler,airflow-dag-processor : airflow-dag-processor,airflow-triggerer : airflow-triggerer,airflow-apiserver : airflow-apiserver,airflow-worker : airflow-worker,airflow-worker-claude : airflow-worker-claude,tradingo-worker : tradingo-worker,tradingo-mcp : tradingo-mcp",
+        "type": "custom"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 10,
+      "title": "Trace Search",
+      "type": "row"
+    },
+    {
+      "id": 2,
+      "title": "Recent Traces",
+      "description": "Filter by service using the dropdown above. Click any row to open the span waterfall view.",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 1, "w": 24, "h": 16 },
+      "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+          "queryType": "traceql",
+          "query": "{ resource.service.name =~ \"$service\" }",
+          "limit": 25,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "id": 12,
+      "title": "Errors & Slow Traces",
+      "type": "row"
+    },
+    {
+      "id": 3,
+      "title": "Error Traces",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 18, "w": 12, "h": 14 },
+      "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+          "queryType": "traceql",
+          "query": "{ status = error }",
+          "limit": 20,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Slow Traces (> 500ms)",
+      "type": "table",
+      "gridPos": { "x": 12, "y": 18, "w": 12, "h": 14 },
+      "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+          "queryType": "traceql",
+          "query": "{ duration > 500ms }",
+          "limit": 20,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 13,
+      "title": "By Service Group",
+      "type": "row"
+    },
+    {
+      "id": 5,
+      "title": "Airflow Platform Traces",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 33, "w": 12, "h": 14 },
+      "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+          "queryType": "traceql",
+          "query": "{ resource.service.name =~ \"airflow-.*\" }",
+          "limit": 20,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Tradingo Worker & MCP Traces",
+      "type": "table",
+      "gridPos": { "x": 12, "y": 33, "w": 12, "h": 14 },
+      "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+          "queryType": "traceql",
+          "query": "{ resource.service.name =~ \"tradingo-.*\" }",
+          "limit": 20,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

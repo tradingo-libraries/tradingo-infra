@@ -77,12 +77,23 @@
         - minio.json
         - flower.json
         - logs.json
+        - tempo.json
 
     - name: Template Loki config
       ansible.builtin.template:
         src: "{{ playbook_dir }}/../roles/monitoring/templates/loki.yml.j2"
         dest: "{{ monitoring_config_dir }}/loki.yml"
         mode: "0644"
+
+    - name: Template Tempo config
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/monitoring/templates/tempo.yml.j2"
+        dest: "{{ monitoring_config_dir }}/tempo.yml"
+        mode: "0644"
+      vars:
+        tempo_retention: "720h"
+        minio_access_key: "minioadmin"
+        minio_secret_key: "minioadmin"
 
 - name: Deploy monitoring stack
   hosts: managers

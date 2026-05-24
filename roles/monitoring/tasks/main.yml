@@ -121,11 +121,18 @@
         - flower.json
         - logs.json
         - postgres.json
+        - tempo.json
 
     - name: Template Loki config
       ansible.builtin.template:
         src: loki.yml.j2
         dest: "{{ monitoring_config_dir }}/loki.yml"
+        mode: "0644"
+
+    - name: Template Tempo config
+      ansible.builtin.template:
+        src: tempo.yml.j2
+        dest: "{{ monitoring_config_dir }}/tempo.yml"
         mode: "0644"
 
     - name: Template Promtail config

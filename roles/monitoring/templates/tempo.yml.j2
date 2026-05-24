@@ -1,0 +1,32 @@
+# {{ ansible_managed }}
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo-traces
+      endpoint: "{{ minio_host }}:{{ minio_port }}"
+      access_key: "{{ minio_access_key }}"
+      secret_key: "{{ minio_secret_key }}"
+      insecure: true
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+    block:
+      version: vParquet4
+
+overrides:
+  defaults:
+    ingestion: {}
