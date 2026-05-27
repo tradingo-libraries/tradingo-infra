@@ -124,8 +124,10 @@
         cmd: registry-prune {{ registry_host }} {{ registry_keep_tags }}
       register: prune_result
       changed_when: "'DELETE' in prune_result.stdout"
+      delegate_to: "{{ groups['nfs_servers'][0] }}"
 
     - name: Show prune results
       ansible.builtin.debug:
         msg: "{{ prune_result.stdout_lines }}"
       when: prune_result.stdout_lines | length > 0
+      delegate_to: "{{ groups['nfs_servers'][0] }}"
