@@ -14,6 +14,8 @@ if ! command -v regctl &>/dev/null; then
   exit 1
 fi
 
+regctl registry set --tls disabled "$REGISTRY"
+
 repos=$(regctl repo ls "$REGISTRY" 2>/dev/null) || {
   echo "ERROR: cannot list repos on $REGISTRY" >&2
   exit 1

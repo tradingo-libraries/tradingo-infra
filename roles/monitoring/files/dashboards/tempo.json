@@ -3,7 +3,7 @@
   "uid": "tradingo-tempo",
   "timezone": "browser",
   "schemaVersion": 38,
-  "version": 3,
+  "version": 4,
   "refresh": "30s",
   "time": { "from": "now-1h", "to": "now" },
   "tags": ["tempo", "traces", "tradingo"],
@@ -36,6 +36,33 @@
         ],
         "query": "All : .*,airflow-scheduler : airflow-scheduler,airflow-dag-processor : airflow-dag-processor,airflow-triggerer : airflow-triggerer,airflow-apiserver : airflow-apiserver,airflow-worker : airflow-worker,airflow-worker-claude : airflow-worker-claude,tradingo-worker : tradingo-worker,tradingo-mcp : tradingo-mcp",
         "type": "custom"
+      },
+      {
+        "current": { "selected": false, "text": ".*", "value": ".*" },
+        "hide": 0,
+        "label": "Operation",
+        "name": "operation",
+        "query": ".*",
+        "type": "textbox",
+        "description": "Filter spans by operation/span name (regex). Default .* matches all."
+      },
+      {
+        "current": { "selected": false, "text": "0ms", "value": "0ms" },
+        "hide": 0,
+        "label": "Min Duration",
+        "name": "min_duration",
+        "query": "0ms",
+        "type": "textbox",
+        "description": "Minimum trace/span duration filter, e.g. 100ms, 1s, 500ms."
+      },
+      {
+        "current": { "selected": false, "text": "", "value": "" },
+        "hide": 0,
+        "label": "Trace ID",
+        "name": "traceid",
+        "query": "",
+        "type": "textbox",
+        "description": "Paste a trace ID here to view the span waterfall and correlated service logs."
       }
     ]
   },
@@ -50,7 +77,7 @@
     {
       "id": 2,
       "title": "Recent Traces",
-      "description": "Filter by service using the dropdown above. Click any row to open the span waterfall view.",
+      "description": "Filter by service, operation, and min duration using the dropdowns above. Click any row to open the span waterfall view.",
       "type": "table",
       "gridPos": { "x": 0, "y": 1, "w": 24, "h": 16 },
       "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
@@ -58,7 +85,7 @@
         {
           "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"$service\" }",
+          "query": "{ resource.service.name =~ \"$service\" && name =~ \"$operation\" && duration >= $min_duration }",
           "limit": 25,
           "tableType": "traces",
           "refId": "A"
@@ -143,6 +170,98 @@
           "query": "{ resource.service.name =~ \"tradingo-.*\" }",
           "limit": 20,
           "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 47 },
+      "id": 14,
+      "title": "Span Search",
+      "type": "row"
+    },
+    {
+      "id": 7,
+      "title": "Spans by Operation",
+      "description": "Individual spans matching the Operation filter. Set the Operation variable above (regex supported). Useful for finding slow or failing spans by operation name.",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 48, "w": 12, "h": 14 },
+      "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+          "queryType": "traceql",
+          "query": "{ name =~ \"$operation\" && resource.service.name =~ \"$service\" && duration >= $min_duration }",
+          "limit": 50,
+          "tableType": "spans",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Error Spans by Operation",
+      "description": "Individual error spans. Useful for pinpointing which operations are failing and correlating with logs via trace ID.",
+      "type": "table",
+      "gridPos": { "x": 12, "y": 48, "w": 12, "h": 14 },
+      "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+          "queryType": "traceql",
+          "query": "{ status = error && name =~ \"$operation\" && resource.service.name =~ \"$service\" }",
+          "limit": 50,
+          "tableType": "spans",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 62 },
+      "id": 15,
+      "title": "Trace ID Lookup & Log Correlation",
+      "type": "row"
+    },
+    {
+      "id": 9,
+      "title": "Span Waterfall",
+      "description": "Paste a trace ID into the 'Trace ID' variable above to view the full span waterfall for that trace.",
+      "type": "traces",
+      "gridPos": { "x": 0, "y": 63, "w": 24, "h": 20 },
+      "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
+          "queryType": "traceId",
+          "query": "$traceid",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Correlated Logs",
+      "description": "Service logs containing the trace ID set above. Requires structured logs with trace_id field (OTel SDK). Adjust the json field name if your logs use traceId or otelTraceID.",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 83, "w": 24, "h": 12 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Ascending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+          "expr": "{job=~\".+\"} | json | trace_id = \"$traceid\"",
+          "queryType": "range",
           "refId": "A"
         }
       ]

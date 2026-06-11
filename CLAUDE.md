@@ -199,6 +199,30 @@ Edit the templates/files under `roles/monitoring/`, then run `make deploy-monito
 2. Add `inventory/host_vars/nuc-XX.yml` with `static_ip` and `hostname`.
 3. Run `ansible-playbook playbooks/site.yml --limit nuc-XX`.
 
+### Adding a new NFS-shared volume
+
+NFS shares are declared in `inventory/group_vars/all.yml` under `nfs_shares`. Adding a volume to `docker-stack.yaml` that uses `type: nfs4` requires a matching entry there **and** reprovisioning the NFS server so the directory is created and exported.
+
+1. Add the share to `nfs_shares` in `inventory/group_vars/all.yml`:
+   ```yaml
+   - name: my_new_share
+     owner_group: service   # or research / root as appropriate
+     mode: "2775"
+   ```
+2. Run `make setup-nfs` from the repo root — this creates the directory on nuc-01, sets ownership/permissions, and updates `/etc/exports`.
+3. Add the NFS volume definition to `tradingo-plat/docker-stack.yaml`:
+   ```yaml
+   my-new-volume:
+     driver: local
+     driver_opts:
+       type: nfs4
+       o: "addr=${NFS_SERVER:-nfs.local},soft,rw"
+       device: ":${NFS_BASE:-/srv/nfs}/my_new_share"
+   ```
+4. Deploy: `make deploy TAG=<tag>`.
+
+Skipping step 2 means the NFS path doesn't exist and Docker will fail to mount the volume on any node other than the one where the directory happens to have been created manually.
+
 ### Adding a new MCP server stack
 Follow the pattern in `roles/docker_mcp/` or `roles/web_search_mcp/`:
 1. Create a role with `defaults/main.yml`, `tasks/main.yml`, and a `templates/<name>-stack.yml.j2`.

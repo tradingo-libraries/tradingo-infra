@@ -87,6 +87,12 @@
         dest: "{{ monitoring_config_dir }}/grafana/dashboard-json/polymarket/polymarket.json"
         mode: "0644"
 
+    - name: Template Alloy config
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/monitoring/templates/alloy.river.j2"
+        dest: "{{ monitoring_config_dir }}/alloy.river"
+        mode: "0644"
+
     - name: Template Loki config
       ansible.builtin.template:
         src: "{{ playbook_dir }}/../roles/monitoring/templates/loki.yml.j2"
