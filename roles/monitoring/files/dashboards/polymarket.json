@@ -46,9 +46,14 @@
           "type": "grafana-clickhouse-datasource",
           "uid": "clickhouse-polymarket"
         },
-        "definition": "SELECT concat(market, ' - ', outcome) FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND asset_id IN (SELECT DISTINCT asset_id FROM quotes) AND lower(concat(market, ' - ', outcome)) LIKE lower(concat('%', '${search}', '%')) ORDER BY market, outcome LIMIT 500",
+        "definition": "SELECT DISTINCT concat(market, ' - ', outcome) FROM universe_snapshots WHERE asset_id IN (SELECT DISTINCT asset_id FROM quotes) AND lower(concat(market, ' - ', outcome)) LIKE lower(concat('%', '${search}', '%')) ORDER BY 1 LIMIT 500",
+        "current": {
+          "selected": true,
+          "text": "$__all",
+          "value": "$__all"
+        },
         "hide": 0,
-        "includeAll": false,
+        "includeAll": true,
         "label": "Outcome",
         "multi": true,
         "name": "market_label",
@@ -56,7 +61,7 @@
         "query": {
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT concat(market, ' - ', outcome) FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND asset_id IN (SELECT DISTINCT asset_id FROM quotes) AND lower(concat(market, ' - ', outcome)) LIKE lower(concat('%', '${search}', '%')) ORDER BY market, outcome LIMIT 500",
+          "rawSql": "SELECT DISTINCT concat(market, ' - ', outcome) FROM universe_snapshots WHERE asset_id IN (SELECT DISTINCT asset_id FROM quotes) AND lower(concat(market, ' - ', outcome)) LIKE lower(concat('%', '${search}', '%')) ORDER BY 1 LIMIT 500",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
@@ -160,7 +165,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT mid FROM quotes WHERE asset_id IN (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) IN (${market_label:singlequote})) ORDER BY ts DESC LIMIT 1",
+          "rawSql": "SELECT mid FROM quotes WHERE asset_id IN (SELECT asset_id FROM universe_snapshots WHERE  concat(market, ' - ', outcome) IN (${market_label:singlequote})) ORDER BY ts DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -221,7 +226,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT bid FROM quotes WHERE asset_id IN (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) IN (${market_label:singlequote})) ORDER BY ts DESC LIMIT 1",
+          "rawSql": "SELECT bid FROM quotes WHERE asset_id IN (SELECT asset_id FROM universe_snapshots WHERE  concat(market, ' - ', outcome) IN (${market_label:singlequote})) ORDER BY ts DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -282,7 +287,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT ask FROM quotes WHERE asset_id IN (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) IN (${market_label:singlequote})) ORDER BY ts DESC LIMIT 1",
+          "rawSql": "SELECT ask FROM quotes WHERE asset_id IN (SELECT asset_id FROM universe_snapshots WHERE  concat(market, ' - ', outcome) IN (${market_label:singlequote})) ORDER BY ts DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -351,7 +356,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT spread FROM quotes WHERE asset_id IN (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) IN (${market_label:singlequote})) ORDER BY ts DESC LIMIT 1",
+          "rawSql": "SELECT spread FROM quotes WHERE asset_id IN (SELECT asset_id FROM universe_snapshots WHERE  concat(market, ' - ', outcome) IN (${market_label:singlequote})) ORDER BY ts DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -387,7 +392,7 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": false,
+            "spanNulls": true,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -430,7 +435,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT q.ts AS time, concat(u.market, ' - ', u.outcome) AS market, q.${field:raw} AS value FROM quotes q INNER JOIN (SELECT DISTINCT asset_id, market, outcome FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) IN (${market_label:singlequote})) u ON q.asset_id = u.asset_id WHERE $__timeFilter(q.ts) ORDER BY time ASC LIMIT 50000",
+          "rawSql": "SELECT q.ts AS time, concat(u.market, ' - ', u.outcome) AS market, q.${field:raw} AS value FROM quotes q INNER JOIN (SELECT DISTINCT asset_id, market, outcome FROM universe_snapshots WHERE  concat(market, ' - ', outcome) IN (${market_label:singlequote})) u ON q.asset_id = u.asset_id WHERE $__timeFilter(q.ts) ORDER BY time ASC LIMIT 50000",
           "refId": "A"
         }
       ],
@@ -450,7 +455,9 @@
         {
           "id": "partitionByValues",
           "options": {
-            "fields": ["market"],
+            "fields": [
+              "market"
+            ],
             "keepFields": false
           }
         }
@@ -575,7 +582,7 @@
           },
           "editorType": "sql",
           "format": 1,
-          "rawSql": "SELECT ts AS time, bid, ask, mid FROM quotes WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) IN (${market_label:singlequote}) ORDER BY market, outcome LIMIT 1) AND $__timeFilter(ts) ORDER BY ts ASC",
+          "rawSql": "SELECT ts AS time, bid, ask, mid FROM quotes WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE  concat(market, ' - ', outcome) IN (${market_label:singlequote}) ORDER BY market, outcome LIMIT 1) AND $__timeFilter(ts) ORDER BY ts ASC",
           "refId": "A"
         }
       ],
@@ -653,7 +660,7 @@
           },
           "editorType": "sql",
           "format": 1,
-          "rawSql": "SELECT ts AS time, spread FROM quotes WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) IN (${market_label:singlequote}) ORDER BY market, outcome LIMIT 1) AND $__timeFilter(ts) ORDER BY ts ASC",
+          "rawSql": "SELECT ts AS time, spread FROM quotes WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE  concat(market, ' - ', outcome) IN (${market_label:singlequote}) ORDER BY market, outcome LIMIT 1) AND $__timeFilter(ts) ORDER BY ts ASC",
           "refId": "A"
         }
       ],
@@ -793,7 +800,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT ts, side, price, size, round(price * size, 4) AS notional FROM trades WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) IN (${market_label:singlequote}) ORDER BY market, outcome LIMIT 1) AND $__timeFilter(ts) ORDER BY ts ASC LIMIT 200",
+          "rawSql": "SELECT ts, side, price, size, round(price * size, 4) AS notional FROM trades WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE  concat(market, ' - ', outcome) IN (${market_label:singlequote}) ORDER BY market, outcome LIMIT 1) AND $__timeFilter(ts) ORDER BY ts ASC LIMIT 200",
           "refId": "A"
         }
       ],
@@ -915,7 +922,7 @@
           },
           "editorType": "sql",
           "format": 1,
-          "rawSql": "SELECT $__timeInterval(ts) AS time, sumIf(1, event_type = 'add') AS add, sumIf(1, event_type = 'remove') AS remove, sumIf(1, event_type = 'update') AS update FROM order_events WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE snapshot_ts = (SELECT max(snapshot_ts) FROM universe_snapshots) AND concat(market, ' - ', outcome) IN (${market_label:singlequote}) ORDER BY market, outcome LIMIT 1) AND $__timeFilter(ts) GROUP BY time ORDER BY time ASC",
+          "rawSql": "SELECT $__timeInterval(ts) AS time, sumIf(1, event_type = 'add') AS add, sumIf(1, event_type = 'remove') AS remove, sumIf(1, event_type = 'update') AS update FROM order_events WHERE asset_id = (SELECT asset_id FROM universe_snapshots WHERE  concat(market, ' - ', outcome) IN (${market_label:singlequote}) ORDER BY market, outcome LIMIT 1) AND $__timeFilter(ts) GROUP BY time ORDER BY time ASC",
           "refId": "A"
         }
       ],
