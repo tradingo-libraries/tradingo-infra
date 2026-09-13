@@ -32,3 +32,9 @@
     dest: /etc/netplan/01-static.yaml
     mode: "0600"
   notify: apply netplan
+
+# Handlers only fire at the end of the play by default — flush now so the
+# new address/gateway/DNS are live before packages/firewall/ssh tasks run
+# (they need working network, and ssh.yml may reconnect on a changed IP).
+- name: Apply netplan immediately
+  ansible.builtin.meta: flush_handlers

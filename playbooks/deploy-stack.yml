@@ -26,7 +26,7 @@
   vars:
     stack_name: tradingo
     stack_file: "{{ stack_deploy_dir }}/docker-stack.yaml"
-    registry_host: "192.168.1.50:5000"
+    registry_host: "192.168.0.50:5000"
     jupyter_tag: "{{ image_tag }}"
     monitor_tag: "{{ image_tag }}"
     mcp_tag: "{{ image_tag }}"
@@ -66,20 +66,6 @@
         NFS_SERVER: "{{ hostvars[groups['nfs_servers'][0]].static_ip }}"
         NFS_BASE: "{{ nfs_export_base }}"
       changed_when: true
-
-    # Wait for dask-scheduler to be stable before dask-workers restart so they
-    # don't fail their initial connection and burn through max_attempts.
-    - name: Wait for dask-scheduler to be running
-      ansible.builtin.command:
-        cmd: >
-          docker service ps {{ stack_name }}_dask-scheduler
-          --filter desired-state=running
-          --format "{{ '{{' }}.CurrentState{{ '}}' }}"
-      register: dask_sched_state
-      until: "'Running' in dask_sched_state.stdout"
-      retries: 24
-      delay: 10
-      changed_when: false
 
     # --- Wait for infrastructure services before Airflow starts pulling resources ---
 

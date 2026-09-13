@@ -13,7 +13,7 @@
 #
 #   # Override image or port:
 #   ansible-playbook playbooks/deploy-web-search-mcp.yml \
-#     -e web_search_mcp_image=192.168.1.50:5000/web-search-mcp:v1 \
+#     -e web_search_mcp_image=192.168.0.50:5000/web-search-mcp:v1 \
 #     -e web_search_mcp_port=8769
 #
 #   # Tear down:

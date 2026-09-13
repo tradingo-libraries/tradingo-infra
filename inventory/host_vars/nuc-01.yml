@@ -1,4 +1,4 @@
 ---
-static_ip: "192.168.1.50"
+static_ip: "192.168.0.50"
 hostname: "nuc-01"
 ansible_user: admin

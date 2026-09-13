@@ -13,7 +13,7 @@
                             │
                    ┌────────┴────────┐
                    │    nuc-05       │  ← Swarm manager
-                   │  LAN .54        │     Docker registry :5000
+                   │  LAN .1.54      │     Docker registry :5000
                    │  WG: 10.8.0.8   │     WireGuard peer (jump host)
                    └────────┬────────┘
                             │ ProxyJump (SSH)
@@ -21,12 +21,15 @@
            │        │                │        │
       ┌────┴───┐ ┌──┴────┐      ┌───┴───┐ ┌──┴────┐
       │ nuc-01 │ │ nuc-02│      │ nuc-03│ │ nuc-04│
-      │  .50   │ │  .51  │      │  .52  │ │  .53  │
+      │0.50 (!)│ │ .1.51 │      │ .1.52 │ │ .1.53 │
       │ worker │ │worker │      │worker │ │worker │
       │  NFS ✓ │ └───────┘      └───────┘ └───────┘
       └────────┘
 
-Home LAN: 192.168.1.0/24    WireGuard: 10.8.0.0/24
+Home LAN: 192.168.1.0/24 (nuc-02–05)    WireGuard: 10.8.0.0/24
+(!) nuc-01 is currently isolated on a separate, unbridged 192.168.0.0/24
+    segment — unreachable from the manager until it's back on the same
+    switch/segment as the rest of the swarm.
 ```
 
 All Ansible runs reach LAN nodes via `ProxyJump` through nuc-05's WireGuard IP (`10.8.0.8`). After first bootstrap, the cluster is fully reachable from anywhere on the WireGuard network.
@@ -39,12 +42,14 @@ All Ansible runs reach LAN nodes via `ProxyJump` through nuc-05's WireGuard IP (
 |---------|----------|----------------|----------|---------------|----------------------------------------------|
 | gateway | gateway  | DO public IP   | 10.8.0.1 | —             | WireGuard relay (not in Swarm)               |
 | nuc-05  | managers | 192.168.1.54   | 10.8.0.8 | 192.168.1.54  | Swarm manager, WG peer                                  |
-| nuc-01  | workers  | 192.168.1.50   | —        | 192.168.1.50  | Swarm worker, NFS server, Docker registry, buildx builder |
+| nuc-01  | workers  | 192.168.0.50   | —        | 192.168.0.50  | Swarm worker, NFS server, Docker registry, buildx builder |
 | nuc-02  | workers  | 192.168.1.51   | —        | 192.168.1.51  | Swarm worker, NFS client, MinIO              |
 | nuc-03  | workers  | 192.168.1.52   | —        | 192.168.1.52  | Swarm worker, NFS client                     |
 | nuc-04  | workers  | 192.168.1.53   | —        | 192.168.1.53  | Swarm worker, NFS client                     |
 
 Workers are not WireGuard peers — they are reached from outside the LAN via the ProxyJump through nuc-05.
+
+> **nuc-01 is currently unreachable**: it sits on a separate, unbridged `192.168.0.0/24` segment while the rest of the swarm (including the manager) is on `192.168.1.0/24`. Physical networking fix needed — not an inventory issue.
 
 ---
 
@@ -171,27 +176,27 @@ cd tradingo-plat && ./scripts/rotate-ig-api-key.sh
 
 ## Docker Registry
 
-The local registry runs as a Swarm service pinned to **nuc-01** (`192.168.1.50:5000`), managed by the `swarm_manager` role (service constraint `node.hostname == nuc-01`).
+The local registry runs as a Swarm service pinned to **nuc-01** (`192.168.0.50:5000`), managed by the `swarm_manager` role (service constraint `node.hostname == nuc-01`).
 
 | Service            | Port | Notes                                   |
 |--------------------|------|-----------------------------------------|
 | Registry           | 5000 | HTTP (insecure), pinned to nuc-01       |
 | Registry frontend  | 5080 | Web UI for browsing images (nuc-01)     |
 
-All swarm nodes have `192.168.1.50:5000` in their `insecure-registries` daemon config so plain HTTP pushes/pulls work cluster-wide.
+All swarm nodes have `192.168.0.50:5000` in their `insecure-registries` daemon config so plain HTTP pushes/pulls work cluster-wide.
 
 A **buildx builder** (`tradingo-builder`) is provisioned on nuc-01 via the `swarm_worker` role. It uses a `buildkitd.toml` at `/etc/buildkit/buildkitd.toml` that marks the registry as insecure. Use it for cross-platform or multi-stage builds:
 
 ```bash
 docker buildx build --builder tradingo-builder \
-  --push -t 192.168.1.50:5000/my-image:latest .
+  --push -t 192.168.0.50:5000/my-image:latest .
 ```
 
 ---
 
 ## WireGuard Clients
 
-Clients connect to the DO gateway and get access to both the WireGuard subnet (`10.8.0.0/24`) and the home LAN (`192.168.1.0/24`).
+Clients connect to the DO gateway and get access to both the WireGuard subnet (`10.8.0.0/24`) and the home LAN (`192.168.0.0/24`).
 
 To add a new client:
 1. Add an entry to `wg_clients` in `inventory/group_vars/all.yml`:

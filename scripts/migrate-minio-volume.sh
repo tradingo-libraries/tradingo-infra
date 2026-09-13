@@ -25,7 +25,7 @@ set -euo pipefail
 cleanup() {
   if ! ${DRY_RUN:-false}; then
     log "Cleaning up rsync daemon on nuc-02 (if running)..."
-    ssh "${ADMIN_USER:-rory}@${NUC_02:-192.168.1.51}" "docker stop ${RSYNC_CONTAINER:-minio-rsync-daemon} 2>/dev/null || true" || true
+    ssh "${ADMIN_USER:-rory}@${NUC_02:-192.168.0.51}" "docker stop ${RSYNC_CONTAINER:-minio-rsync-daemon} 2>/dev/null || true" || true
   fi
 }
 trap cleanup EXIT
@@ -33,8 +33,8 @@ trap cleanup EXIT
 # ---------------------------------------------------------------------------
 # Configuration — adjust if your environment differs
 # ---------------------------------------------------------------------------
-NUC_01="192.168.1.50"
-NUC_02="192.168.1.51"
+NUC_01="192.168.0.50"
+NUC_02="192.168.0.51"
 ADMIN_USER="rory"
 STACK_NAME="tradingo"
 VOLUME_NAME="minio-data"

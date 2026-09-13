@@ -5,8 +5,8 @@
 # =============================================================================
 
 # --- Network ---
-network_subnet: "192.168.1.0/24"
-network_gateway: "192.168.1.1"
+network_subnet: "192.168.0.0/24"
+network_gateway: "192.168.0.1"
 dns_servers:
   - "1.1.1.1"
   - "8.8.8.8"
@@ -79,7 +79,7 @@ nfs_mount_base: "/mnt/nfs"
 
 # Optional: Mac clients mapped to a server UID/GID (all_squash)
 # nfs_mac_clients:
-#   - ip: "192.168.1.x"
+#   - ip: "192.168.0.x"
 #     anonuid: 1100
 #     anongid: 1100
 

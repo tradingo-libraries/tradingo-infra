@@ -1,6 +1,22 @@
 ---
 # roles/common/tasks/packages.yml
 
+- name: Check internet connectivity before apt update
+  ansible.builtin.uri:
+    url: http://archive.ubuntu.com
+    timeout: 5
+  register: net_check
+  failed_when: false
+  changed_when: false
+
+- name: Fail fast if this node has no internet route
+  ansible.builtin.fail:
+    msg: >
+      {{ inventory_hostname }} ({{ ansible_host | default('unknown') }}) cannot reach
+      archive.ubuntu.com. Check the switch's uplink to the router, the default
+      route (network_gateway), and DNS (dns_servers) before retrying apt.
+  when: net_check.status is not defined or net_check.status != 200
+
 - name: Update apt cache
   ansible.builtin.apt:
     update_cache: true

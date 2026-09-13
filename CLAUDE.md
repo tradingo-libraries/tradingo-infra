@@ -12,10 +12,12 @@ All `make` targets are in the **root `Makefile`** (`/Users/rmcstay/dev/tradsys/M
 |---------|---------------|----------|------------|-------------------------------------|----------------------------------------------|
 | gateway | DO public IP  | 10.8.0.1 | —          | —                                   | WireGuard relay (not in Swarm)               |
 | nuc-05  | 192.168.1.54  | 10.8.0.8 | manager    | `role=manager`, `workload=platform`, `node=nuc-05` | Swarm manager, WG peer, platform services    |
-| nuc-01  | 192.168.1.50  | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-01`   | NFS server, Docker registry :5000, buildx    |
+| nuc-01  | 192.168.0.50  | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-01`   | NFS server, Docker registry :5000, buildx    |
 | nuc-02  | 192.168.1.51  | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-02`   | MinIO, Grafana, Loki                         |
 | nuc-03  | 192.168.1.52  | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-03`   | Compute workloads                            |
 | nuc-04  | 192.168.1.53  | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-04`   | Compute workloads                            |
+
+> **Note**: `nuc-01` is currently on a separate, unbridged network segment (`192.168.0.0/24`) from the rest of the swarm (`192.168.1.0/24`) and is unreachable from the manager — a physical networking issue, not an Ansible/inventory one. See git history around 2026-09 for context.
 
 **Placement shorthand** used in stack files:
 - `node.role == manager` → **nuc-05**
@@ -58,11 +60,11 @@ Four stacks are active plus two standalone services. Replicas reflect the runnin
 | `minio`                 | `minio/minio:latest`          | nuc-02                 | 9000, 9001 | S3-compatible ArcticDB storage; 9001=console |
 | `createbuckets`         | `minio/mc:latest`             | manager (nuc-05)       | —          | One-shot: create tradingo-store bucket|
 
-**Airflow images** (`192.168.1.50:5000/tradingo-plat-airflow:<tag>`):
+**Airflow images** (`192.168.0.50:5000/tradingo-plat-airflow:<tag>`):
 - `airflow` — base Airflow image
 - `airflow-claude` — adds Claude CLI for agent tasks
 
-**Other images** (all from local registry `192.168.1.50:5000`):
+**Other images** (all from local registry `192.168.0.50:5000`):
 - `tradingo-plat-jupyter:<tag>` — Jupyter + Dask + Tradingo worker
 - `tradingo-plat-monitor:<tag>` — Plotly Dash portfolio dashboard
 - `tradingo-plat-mcp:<tag>` — Tradingo MCP server
@@ -98,7 +100,7 @@ Four stacks are active plus two standalone services. Replicas reflect the runnin
 
 | Service          | Image                                     | Placement         | Port | Notes                          |
 |------------------|-------------------------------------------|-------------------|------|--------------------------------|
-| `web-search-mcp` | `192.168.1.50:5000/web-search-mcp:latest` | platform (nuc-05) | 8768 | DuckDuckGo search MCP; on `tradingo-backend` network |
+| `web-search-mcp` | `192.168.0.50:5000/web-search-mcp:latest` | platform (nuc-05) | 8768 | DuckDuckGo search MCP; on `tradingo-backend` network |
 
 ---
 
