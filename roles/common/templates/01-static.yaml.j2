@@ -7,6 +7,9 @@ network:
       dhcp4: false
       addresses:
         - {{ static_ip }}/24
+{% if legacy_ip is defined %}
+        - {{ legacy_ip }}/24  # pre-renumbering address; Swarm's raft state still advertises the manager on this subnet
+{% endif %}
       routes:
         - to: default
           via: {{ network_gateway }}
