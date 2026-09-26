@@ -33,6 +33,14 @@
         dest: "{{ monitoring_config_dir }}/promtail.yml"
         mode: "0644"
 
+    # Not delegated from the role: ansible_host is templated from inventory_hostname,
+    # so delegate_to would connect to the play host instead of the target node.
+    - name: Create node_exporter textfile collector directory
+      ansible.builtin.file:
+        path: /var/lib/node_exporter/textfile_collector
+        state: directory
+        mode: "0755"
+
 - name: Deploy Grafana/Prometheus/Loki config to nuc-02
   hosts: nuc-02
   become: true
@@ -80,6 +88,7 @@
         - flower.json
         - logs.json
         - tempo.json
+        - service-health.json
 
     - name: Copy polymarket dashboard JSON
       ansible.builtin.copy:
