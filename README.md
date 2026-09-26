@@ -32,7 +32,7 @@ Home LAN: 192.168.1.0/24 (nuc-02–05)    WireGuard: 10.8.0.0/24
     switch/segment as the rest of the swarm.
 ```
 
-All Ansible runs reach LAN nodes via `ProxyJump` through nuc-05's WireGuard IP (`10.8.0.8`). After first bootstrap, the cluster is fully reachable from anywhere on the WireGuard network.
+Ansible reaches the nodes over **Tailscale** by default (~3 ms, no jump host). WireGuard remains as an independent backup path: LAN nodes are reached via `ProxyJump` through nuc-05's WireGuard IP (`10.8.0.8`). See [Tailscale](#tailscale).
 
 ---
 
@@ -52,6 +52,47 @@ Workers are not WireGuard peers — they are reached from outside the LAN via th
 > **nuc-01 is currently unreachable**: it sits on a separate, unbridged `192.168.0.0/24` segment while the rest of the swarm (including the manager) is on `192.168.1.0/24`. Physical networking fix needed — not an inventory issue.
 
 ---
+
+## Tailscale
+
+Every swarm node (and your MacBook) is in one tailnet, authenticated with GitHub. It is the **primary** way to reach the cluster (~3 ms vs ~30 ms over WireGuard); WireGuard is kept as a redundant second path.
+
+### Address convention
+
+| What | Format | Example |
+|------|--------|---------|
+| Tailnet node name | inventory hostname | `nuc-05` |
+| MagicDNS address (use this everywhere) | `<hostname>.tailfe5b8d.ts.net` | `nuc-05.tailfe5b8d.ts.net` |
+| Tailnet IP (pinned, asserted by the role) | `tailscale_ip` in `inventory/host_vars/<host>.yml` | `100.97.159.93` |
+
+Use the MagicDNS name in MCP configs, `.env` files and ssh commands (`ssh admin@nuc-05.tailfe5b8d.ts.net`). Only the raw IP is a fallback if DNS is down.
+
+### Setup
+
+```bash
+# First join (on LAN or over WireGuard, since the node isn't on the tailnet yet):
+ansible-playbook playbooks/setup-tailscale.yml -e cluster_access=wireguard
+
+# Auth: either open the printed login URL per node and sign in with GitHub, or
+# pass an auth key created while signed in with GitHub (Settings → Keys):
+ansible-playbook playbooks/setup-tailscale.yml -e tailscale_authkey=tskey-auth-...
+```
+
+The `tailscale` role installs from the official apt repo, joins with `--hostname=<inventory_hostname>` (no tags, so nodes stay owned by your GitHub user), leaves node DNS untouched (`--accept-dns=false`), and asserts the node's name and IP match the convention. Already-joined nodes are skipped. The `common` firewall role allows traffic on `tailscale0` and UDP 41641.
+
+### Choosing the access path
+
+`cluster_access` (default `tailscale`, in `inventory/group_vars/swarm.yml`) controls how Ansible connects:
+
+| Value | `ansible_host` | Jump host | Use when |
+|-------|----------------|-----------|----------|
+| `tailscale` | `<host>.tailfe5b8d.ts.net` | none | default |
+| `wireguard` | LAN IP | `admin@10.8.0.8` | Tailscale down / node not joined yet |
+| `lan` | LAN IP | none | on the home network |
+
+```bash
+ansible-playbook playbooks/deploy-monitoring.yml -e cluster_access=wireguard
+```
 
 ## Digital Ocean Gateway Setup
 
@@ -288,6 +329,7 @@ tradingo-infra/
 │   ├── nfs_client/             # NFS mounts (nuc-02/03/04/05)
 │   ├── wireguard_server/       # WG relay config (DO gateway)
 │   ├── wireguard_peer/         # WG peer config (nuc-05)
+│   ├── tailscale/              # Tailscale install + join (GitHub-authenticated tailnet)
 │   ├── swarm_manager/          # Swarm init, overlay networks, Docker registry,
 │   │                           #   buildx builder, regctl, node labels
 │   ├── swarm_worker/           # Swarm join
@@ -299,6 +341,7 @@ tradingo-infra/
     ├── bootstrap-nodes.yml     # OS setup, users, Docker, firewall
     ├── setup-gateway.yml       # DO WireGuard gateway + users
     ├── setup-wireguard.yml     # WireGuard peer on nuc-05
+    ├── setup-tailscale.yml     # Join nodes to the Tailscale tailnet
     ├── setup-nfs.yml           # NFS server + clients
     ├── init-swarm.yml          # Swarm init, registry, buildx builder
     ├── promote-manager.yml     # Promote a worker to manager

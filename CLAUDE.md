@@ -19,6 +19,8 @@ All `make` targets are in the **root `Makefile`** (`/Users/rmcstay/dev/tradsys/M
 
 > **Note**: `nuc-01` is currently on a separate, unbridged network segment (`192.168.0.0/24`) from the rest of the swarm (`192.168.1.0/24`) and is unreachable from the manager — a physical networking issue, not an Ansible/inventory one. See git history around 2026-09 for context.
 
+**Access**: nodes are reached over Tailscale by default at `<host>.tailfe5b8d.ts.net` (e.g. `nuc-05.tailfe5b8d.ts.net`; IPs pinned as `tailscale_ip` in host_vars). WireGuard is the backup: `-e cluster_access=wireguard` (or `lan`). Prefer the MagicDNS names in configs and commands — see README "Tailscale".
+
 **Placement shorthand** used in stack files:
 - `node.role == manager` → **nuc-05**
 - `node.labels.workload == platform` → **nuc-05**
@@ -150,7 +152,8 @@ Four stacks are active plus two standalone services. Replicas reflect the runnin
 | `nfs_server`        | `setup-nfs.yml`, `site.yml`              | NFS exports on nuc-01                                   |
 | `nfs_client`        | `setup-nfs.yml`, `site.yml`              | NFS mounts on nuc-02/03/04/05                           |
 | `wireguard_server`  | `setup-gateway.yml`                      | WG relay on DO gateway                                  |
-| `wireguard_peer`    | `setup-wireguard.yml`                    | WG peer on nuc-05                                       |
+| `wireguard_peer`    | `setup-wireguard.yml`                    | WG peer on nuc-05 (backup access path)                  |
+| `tailscale`         | `setup-tailscale.yml`, `site.yml`        | Tailscale install + join (GitHub-authenticated tailnet) |
 | `swarm_manager`     | `init-swarm.yml`                         | Swarm init, overlay networks, registry, registry-frontend, buildx, node labels |
 | `swarm_worker`      | `init-swarm.yml`, `site.yml`             | Swarm join, node labels, buildx builder on nuc-01       |
 | `monitoring`        | `deploy-monitoring.yml`                  | Full monitoring stack (prometheus, grafana, loki, etc.) |

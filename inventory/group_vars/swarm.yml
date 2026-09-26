@@ -1,3 +1,19 @@
 ---
 # group_vars for all swarm nodes (managers + workers)
 swarm_advertise_interface: "eno1"  # Adjust per NUC model if needed
+
+# --- Access path ---
+# How Ansible (and you) reach the nodes. Override per run: -e cluster_access=wireguard
+#   tailscale : MagicDNS names over the tailnet (fast, ~3 ms) — default
+#   wireguard : LAN IPs via ProxyJump through nuc-05's WireGuard IP — backup path
+#   lan       : LAN IPs directly, when on the home network
+# A fresh node has no Tailscale yet: bootstrap with -e cluster_access=lan|wireguard,
+# then run playbooks/setup-tailscale.yml.
+cluster_access: tailscale
+
+# --- Tailscale address convention ---
+# Node name in the tailnet == inventory hostname, so every node is reachable at
+#   <hostname>.<tailscale_tailnet>   e.g. nuc-05.tailfe5b8d.ts.net
+# Each host's tailnet IP is pinned as `tailscale_ip` in host_vars and asserted by
+# the tailscale role. The tailnet is owned by the GitHub account used to sign in.
+tailscale_tailnet: tailfe5b8d.ts.net

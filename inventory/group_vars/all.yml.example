@@ -29,6 +29,12 @@ wg_clients:
   # jane:
   #   ip: "10.99.0.11"
 
+# --- Tailscale ---
+# Optional auth key for unattended joins (setup-tailscale.yml). Create it at
+# https://login.tailscale.com/admin/settings/keys while signed in with GitHub.
+# Leave empty to authenticate each node interactively via a printed login URL.
+# tailscale_authkey: "{{ vault_tailscale_authkey }}"
+
 # --- Groups ---
 user_groups:
   - name: research

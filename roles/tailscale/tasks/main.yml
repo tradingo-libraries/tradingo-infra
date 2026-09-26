@@ -1,0 +1,132 @@
+---
+# roles/tailscale/tasks/main.yml
+# Installs Tailscale from the official apt repo and joins the node to the
+# GitHub-authenticated tailnet. Idempotent: nodes already joined are untouched.
+# Runs over the current access path, so the first run needs LAN or WireGuard
+# access (-e cluster_access=lan|wireguard); afterwards Tailscale is the default.
+
+- name: Check if Tailscale is installed
+  ansible.builtin.command: tailscale version
+  register: tailscale_check
+  changed_when: false
+  failed_when: false
+
+- name: Install Tailscale prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+  when: tailscale_check.rc != 0
+
+- name: Create apt keyring directory
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: "0755"
+  when: tailscale_check.rc != 0
+
+- name: Add Tailscale GPG key
+  ansible.builtin.get_url:
+    url: "https://pkgs.tailscale.com/stable/{{ ansible_distribution | lower }}/{{ ansible_distribution_release }}.noarmor.gpg"
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    mode: "0644"
+  when: tailscale_check.rc != 0
+
+- name: Add Tailscale repository
+  ansible.builtin.apt_repository:
+    repo: >
+      deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
+      https://pkgs.tailscale.com/stable/{{ ansible_distribution | lower }}
+      {{ ansible_distribution_release }} main
+    state: present
+    filename: tailscale
+  when: tailscale_check.rc != 0
+
+- name: Install Tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+    update_cache: true
+  when: tailscale_check.rc != 0
+
+- name: Enable and start tailscaled
+  ansible.builtin.service:
+    name: tailscaled
+    state: started
+    enabled: true
+
+- name: Read Tailscale state
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_state
+  changed_when: false
+
+- name: Set join arguments
+  ansible.builtin.set_fact:
+    tailscale_up_args: >-
+      --hostname={{ tailscale_hostname }}
+      --accept-dns={{ tailscale_accept_dns | lower }}
+      {{ tailscale_extra_args | join(' ') }}
+    tailscale_joined: "{{ (tailscale_state.stdout | from_json).BackendState == 'Running' }}"
+
+# --- Join: auth key (unattended) ---
+- name: Join tailnet with auth key
+  ansible.builtin.command: tailscale up {{ tailscale_up_args }} --authkey={{ tailscale_authkey }}
+  when: not (tailscale_joined | bool) and tailscale_authkey | length > 0
+  no_log: true
+
+# --- Join: interactive GitHub login ---
+- name: Start interactive tailnet login
+  ansible.builtin.command: tailscale up {{ tailscale_up_args }} --timeout={{ tailscale_login_timeout }}s
+  async: "{{ tailscale_login_timeout + 30 }}"
+  poll: 0
+  register: tailscale_login_job
+  when: not (tailscale_joined | bool) and tailscale_authkey | length == 0
+
+- name: Wait for login URL
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_login_state
+  until: (tailscale_login_state.stdout | from_json).AuthURL | default('') | length > 0
+  retries: 15
+  delay: 2
+  changed_when: false
+  when: tailscale_login_job is not skipped
+
+- name: Show login URL
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }}: open {{ (tailscale_login_state.stdout | from_json).AuthURL }} and sign in with GitHub"
+  when: tailscale_login_job is not skipped
+
+- name: Wait for login to complete
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_wait
+  until: (tailscale_wait.stdout | from_json).BackendState == 'Running'
+  retries: "{{ (tailscale_login_timeout / 5) | int }}"
+  delay: 5
+  changed_when: false
+  when: tailscale_login_job is not skipped
+
+# --- Verify the address convention ---
+- name: Read final Tailscale state
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_final
+  changed_when: false
+
+- name: Read tailnet IPv4
+  ansible.builtin.command: tailscale ip -4
+  register: tailscale_ip_out
+  changed_when: false
+
+- name: Assert node follows the address convention
+  ansible.builtin.assert:
+    that:
+      - (tailscale_final.stdout | from_json).BackendState == 'Running'
+      - (tailscale_final.stdout | from_json).Self.DNSName == tailscale_hostname ~ '.' ~ tailscale_tailnet ~ '.'
+      - tailscale_ip is not defined or tailscale_ip_out.stdout | trim == tailscale_ip
+    fail_msg: >-
+      {{ inventory_hostname }} does not match the convention: expected
+      {{ tailscale_hostname }}.{{ tailscale_tailnet }} / {{ tailscale_ip | default('any IP') }},
+      got {{ (tailscale_final.stdout | from_json).Self.DNSName }} / {{ tailscale_ip_out.stdout | trim }}.
+      Rename the machine in the Tailscale admin console or update inventory/host_vars.
+    quiet: true

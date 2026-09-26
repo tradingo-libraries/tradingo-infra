@@ -3,3 +3,4 @@ static_ip: "192.168.0.50"
 legacy_ip: "192.168.1.50"
 hostname: "nuc-01"
 ansible_user: admin
+tailscale_ip: "100.70.60.35"

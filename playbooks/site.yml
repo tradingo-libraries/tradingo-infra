@@ -5,6 +5,7 @@
 - import_playbook: bootstrap-nodes.yml
 - import_playbook: setup-gateway.yml
 - import_playbook: setup-wireguard.yml
+- import_playbook: setup-tailscale.yml
 - import_playbook: setup-nfs.yml
 - import_playbook: init-swarm.yml
 - import_playbook: deploy-crons.yml

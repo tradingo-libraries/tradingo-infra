@@ -1,0 +1,20 @@
+---
+# playbooks/setup-tailscale.yml — Join swarm nodes to the Tailscale tailnet
+# Usage: ansible-playbook playbooks/setup-tailscale.yml
+#        ansible-playbook playbooks/setup-tailscale.yml -e tailscale_authkey=tskey-auth-...
+#
+# Auth is via the tailnet's GitHub identity: either pass an auth key created
+# while signed in with GitHub, or omit it and open the printed login URL for
+# each node. Already-joined nodes are skipped.
+#
+# WireGuard (setup-wireguard.yml) is deliberately kept as a second, independent
+# path into the cluster. Reach nodes over it with -e cluster_access=wireguard.
+# The first run of this playbook on a fresh node needs LAN or WireGuard access:
+#   ansible-playbook playbooks/setup-tailscale.yml -e cluster_access=wireguard
+
+- name: Setup Tailscale on swarm nodes
+  hosts: swarm
+  become: true
+  roles:
+    - role: tailscale
+      tags: [tailscale]
