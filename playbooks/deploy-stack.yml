@@ -111,6 +111,11 @@
       register: prune_result
       changed_when: "'DELETE' in prune_result.stdout"
       delegate_to: "{{ groups['nfs_servers'][0] }}"
+      # ansible_host is templated from inventory_hostname, which stays the play
+      # host (nuc-05) under delegation — so this would connect to nuc-05 using
+      # nuc-01's interpreter. Resolve it in the delegate's own context instead.
+      vars:
+        ansible_host: "{{ hostvars[groups['nfs_servers'][0]]['ansible_host'] }}"
 
     - name: Show prune results
       ansible.builtin.debug:

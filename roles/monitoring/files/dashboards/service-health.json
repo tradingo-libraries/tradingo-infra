@@ -1,0 +1,315 @@
+{
+  "title": "Service Health",
+  "uid": "service-health",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "tags": [
+    "health"
+  ],
+  "description": "Hardcoded health table for every swarm service: replicas, CPU, memory, links to UI (via Tailscale), logs and resource usage.",
+  "links": [],
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 2,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Services (UI links via 100.97.159.93 = nuc-05)",
+      "gridPos": {
+        "h": 28,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (service) (label_replace(count by (container_label_com_docker_swarm_service_name) (container_last_seen{name=~\".+\",container_label_com_docker_swarm_service_name=~\".+\"} > (time() - 60)),\"service\",\"$1\",\"container_label_com_docker_swarm_service_name\",\"(.*)\")) or label_replace(vector(0),\"service\",\"tradingo_airflow-apiserver\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-scheduler\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-dag-processor\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-triggerer\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-worker\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-worker-claude\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_tradingo-worker\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_flower\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_dtale\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_jupyter\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_monitor\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_agent-research-web\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_tradingo-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_miniflux\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_postgres\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_redis\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_minio\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_grafana\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_prometheus\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_loki\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_tempo\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_grafana-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_alloy\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_promtail\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_cadvisor\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_node-exporter\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_postgres-exporter\",\"\",\"\") or label_replace(vector(0),\"service\",\"budgeting\",\"\",\"\") or label_replace(vector(0),\"service\",\"docker-mcp_docker-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"web-search-mcp_web-search-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"registry\",\"\",\"\") or label_replace(vector(0),\"service\",\"registry-frontend\",\"\",\"\")",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (service) (label_replace(rate(container_cpu_usage_seconds_total{name=~\".+\",container_label_com_docker_swarm_service_name=~\".+\"}[2m]),\"service\",\"$1\",\"container_label_com_docker_swarm_service_name\",\"(.*)\")) * 100 or label_replace(vector(0),\"service\",\"tradingo_airflow-apiserver\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-scheduler\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-dag-processor\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-triggerer\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-worker\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-worker-claude\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_tradingo-worker\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_flower\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_dtale\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_jupyter\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_monitor\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_agent-research-web\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_tradingo-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_miniflux\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_postgres\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_redis\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_minio\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_grafana\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_prometheus\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_loki\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_tempo\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_grafana-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_alloy\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_promtail\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_cadvisor\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_node-exporter\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_postgres-exporter\",\"\",\"\") or label_replace(vector(0),\"service\",\"budgeting\",\"\",\"\") or label_replace(vector(0),\"service\",\"docker-mcp_docker-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"web-search-mcp_web-search-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"registry\",\"\",\"\") or label_replace(vector(0),\"service\",\"registry-frontend\",\"\",\"\")",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (service) (label_replace(container_memory_usage_bytes{name=~\".+\",container_label_com_docker_swarm_service_name=~\".+\"},\"service\",\"$1\",\"container_label_com_docker_swarm_service_name\",\"(.*)\")) or label_replace(vector(0),\"service\",\"tradingo_airflow-apiserver\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-scheduler\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-dag-processor\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-triggerer\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-worker\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-worker-claude\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_tradingo-worker\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_flower\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_dtale\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_jupyter\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_monitor\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_agent-research-web\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_tradingo-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_miniflux\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_postgres\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_redis\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_minio\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_grafana\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_prometheus\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_loki\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_tempo\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_grafana-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_alloy\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_promtail\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_cadvisor\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_node-exporter\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_postgres-exporter\",\"\",\"\") or label_replace(vector(0),\"service\",\"budgeting\",\"\",\"\") or label_replace(vector(0),\"service\",\"docker-mcp_docker-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"web-search-mcp_web-search-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"registry\",\"\",\"\") or label_replace(vector(0),\"service\",\"registry-frontend\",\"\",\"\")",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "(label_replace(vector(8080),\"service\",\"tradingo_airflow-apiserver\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-scheduler\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-dag-processor\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-triggerer\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-worker\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-worker-claude\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_tradingo-worker\",\"\",\"\") or label_replace(vector(5555),\"service\",\"tradingo_flower\",\"\",\"\") or label_replace(vector(40000),\"service\",\"tradingo_dtale\",\"\",\"\") or label_replace(vector(8083),\"service\",\"tradingo_jupyter\",\"\",\"\") or label_replace(vector(8082),\"service\",\"tradingo_monitor\",\"\",\"\") or label_replace(vector(8086),\"service\",\"tradingo_agent-research-web\",\"\",\"\") or label_replace(vector(8765),\"service\",\"tradingo_tradingo-mcp\",\"\",\"\") or label_replace(vector(8767),\"service\",\"tradingo_airflow-mcp\",\"\",\"\") or label_replace(vector(8084),\"service\",\"tradingo_miniflux\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_postgres\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_redis\",\"\",\"\") or label_replace(vector(9001),\"service\",\"tradingo_minio\",\"\",\"\") or label_replace(vector(3000),\"service\",\"monitoring_grafana\",\"\",\"\") or label_replace(vector(9090),\"service\",\"monitoring_prometheus\",\"\",\"\") or label_replace(vector(3100),\"service\",\"monitoring_loki\",\"\",\"\") or label_replace(vector(3200),\"service\",\"monitoring_tempo\",\"\",\"\") or label_replace(vector(8766),\"service\",\"monitoring_grafana-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_alloy\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_promtail\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_cadvisor\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_node-exporter\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_postgres-exporter\",\"\",\"\") or label_replace(vector(8085),\"service\",\"budgeting\",\"\",\"\") or label_replace(vector(8000),\"service\",\"docker-mcp_docker-mcp\",\"\",\"\") or label_replace(vector(8768),\"service\",\"web-search-mcp_web-search-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"registry\",\"\",\"\") or label_replace(vector(0),\"service\",\"registry-frontend\",\"\",\"\"))",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Service"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Logs",
+                    "url": "/d/service-logs/service-logs?var-service=${__data.fields.Service}&from=now-1h&to=now",
+                    "targetBlank": true
+                  },
+                  {
+                    "title": "Resource usage",
+                    "url": "/d/docker-swarm/docker-swarm?var-service_name=${__data.fields.Service}&from=now-1h&to=now",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Replicas"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "DOWN",
+                        "color": "red",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "max",
+                "value": 400
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 150
+                    },
+                    {
+                      "color": "red",
+                      "value": 300
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "UI (tailscale)"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "-",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open 100.97.159.93:port",
+                    "url": "http://100.97.159.93:${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Replicas",
+            "desc": false
+          }
+        ],
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "service": "Service",
+              "Value #A": "Replicas",
+              "Value #B": "CPU",
+              "Value #C": "Memory",
+              "Value #D": "UI (tailscale)"
+            },
+            "indexByName": {
+              "service": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

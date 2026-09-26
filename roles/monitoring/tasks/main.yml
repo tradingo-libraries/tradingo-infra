@@ -122,6 +122,7 @@
         - logs.json
         - postgres.json
         - tempo.json
+        - service-health.json
 
     - name: Create polymarket dashboard directory
       ansible.builtin.file:
