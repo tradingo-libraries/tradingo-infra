@@ -23,6 +23,30 @@
         "query": "prometheus",
         "hide": 2,
         "current": {}
+      },
+      {
+        "name": "node",
+        "label": "Node",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": {
+          "query": "label_values(node_cpu_seconds_total{job=\"node-exporter\"}, instance)",
+          "refId": "node-variable-query"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "hide": 0
       }
     ]
   },
@@ -79,6 +103,16 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "expr": "(label_replace(vector(8080),\"service\",\"tradingo_airflow-apiserver\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-scheduler\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-dag-processor\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-triggerer\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-worker\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_airflow-worker-claude\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_tradingo-worker\",\"\",\"\") or label_replace(vector(5555),\"service\",\"tradingo_flower\",\"\",\"\") or label_replace(vector(40000),\"service\",\"tradingo_dtale\",\"\",\"\") or label_replace(vector(8083),\"service\",\"tradingo_jupyter\",\"\",\"\") or label_replace(vector(8082),\"service\",\"tradingo_monitor\",\"\",\"\") or label_replace(vector(8086),\"service\",\"tradingo_agent-research-web\",\"\",\"\") or label_replace(vector(8765),\"service\",\"tradingo_tradingo-mcp\",\"\",\"\") or label_replace(vector(8767),\"service\",\"tradingo_airflow-mcp\",\"\",\"\") or label_replace(vector(8084),\"service\",\"tradingo_miniflux\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_postgres\",\"\",\"\") or label_replace(vector(0),\"service\",\"tradingo_redis\",\"\",\"\") or label_replace(vector(9001),\"service\",\"tradingo_minio\",\"\",\"\") or label_replace(vector(3000),\"service\",\"monitoring_grafana\",\"\",\"\") or label_replace(vector(9090),\"service\",\"monitoring_prometheus\",\"\",\"\") or label_replace(vector(3100),\"service\",\"monitoring_loki\",\"\",\"\") or label_replace(vector(3200),\"service\",\"monitoring_tempo\",\"\",\"\") or label_replace(vector(8766),\"service\",\"monitoring_grafana-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_alloy\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_promtail\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_cadvisor\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_node-exporter\",\"\",\"\") or label_replace(vector(0),\"service\",\"monitoring_postgres-exporter\",\"\",\"\") or label_replace(vector(8085),\"service\",\"budgeting\",\"\",\"\") or label_replace(vector(8000),\"service\",\"docker-mcp_docker-mcp\",\"\",\"\") or label_replace(vector(8768),\"service\",\"web-search-mcp_web-search-mcp\",\"\",\"\") or label_replace(vector(0),\"service\",\"registry\",\"\",\"\") or label_replace(vector(0),\"service\",\"registry-frontend\",\"\",\"\"))",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (service, image) (label_replace(container_last_seen{name=~\".+\",image=~\".+\",container_label_com_docker_swarm_service_name=~\".+\"} > (time() - 60),\"service\",\"$1\",\"container_label_com_docker_swarm_service_name\",\"(.*)\"))",
           "instant": true,
           "format": "table"
         }
@@ -291,25 +325,173 @@
           "id": "organize",
           "options": {
             "excludeByName": {
-              "Time": true
+              "Time": true,
+              "Value #E": true
             },
             "renameByName": {
               "service": "Service",
               "Value #A": "Replicas",
               "Value #B": "CPU",
               "Value #C": "Memory",
-              "Value #D": "UI (tailscale)"
+              "Value #D": "UI (tailscale)",
+              "image": "Image"
             },
             "indexByName": {
               "service": 0,
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4
+              "image": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5
             }
           }
         }
       ]
+    },
+    {
+      "id": 2,
+      "type": "row",
+      "title": "Node Resources",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "panels": []
+    },
+    {
+      "id": 3,
+      "type": "gauge",
+      "title": "$node — CPU",
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 0,
+        "y": 29
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "repeat": "node",
+      "repeatDirection": "h",
+      "maxPerRow": 5,
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", instance=\"$node\", mode=\"idle\"}[5m])) * 100)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "bargauge",
+      "title": "$node — Memory",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 37
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "repeat": "node",
+      "repeatDirection": "h",
+      "maxPerRow": 5,
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "(1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\", instance=\"$node\"} / node_memory_MemTotal_bytes{job=\"node-exporter\", instance=\"$node\"})) * 100",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 75
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
     }
   ]
 }

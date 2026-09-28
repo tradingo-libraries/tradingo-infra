@@ -8,16 +8,20 @@ All `make` targets are in the **root `Makefile`** (`/Users/rmcstay/dev/tradsys/M
 
 ## Node Reference
 
-| Host    | LAN IP        | WG IP    | Swarm role | Labels                              | Key roles                                    |
-|---------|---------------|----------|------------|-------------------------------------|----------------------------------------------|
-| gateway | DO public IP  | 10.8.0.1 | —          | —                                   | WireGuard relay (not in Swarm)               |
-| nuc-05  | 192.168.1.54  | 10.8.0.8 | manager    | `role=manager`, `workload=platform`, `node=nuc-05` | Swarm manager, WG peer, platform services    |
-| nuc-01  | 192.168.0.50  | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-01`   | NFS server, Docker registry :5000, buildx    |
-| nuc-02  | 192.168.1.51  | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-02`   | MinIO, Grafana, Loki                         |
-| nuc-03  | 192.168.1.52  | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-03`   | Compute workloads                            |
-| nuc-04  | 192.168.1.53  | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-04`   | Compute workloads                            |
+| Host    | LAN IP (primary) | Legacy IP (keep!) | WG IP    | Swarm role | Labels                              | Key roles                                    |
+|---------|------------------|-------------------|----------|------------|-------------------------------------|----------------------------------------------|
+| gateway | DO public IP     | —                 | 10.8.0.1 | —          | —                                   | WireGuard relay (not in Swarm)               |
+| nuc-05  | 192.168.0.54     | 192.168.1.54      | 10.8.0.8 | manager    | `role=manager`, `workload=platform`, `node=nuc-05` | Swarm manager, WG peer, platform services    |
+| nuc-01  | 192.168.0.50     | 192.168.1.50      | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-01`   | NFS server, Docker registry :5000, buildx    |
+| nuc-02  | 192.168.0.51     | 192.168.1.51      | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-02`   | MinIO, Grafana, Loki                         |
+| nuc-03  | 192.168.0.52     | 192.168.1.52      | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-03`   | Compute workloads                            |
+| nuc-04  | 192.168.0.53     | 192.168.1.53      | —        | worker     | `role=worker`, `workload=compute`, `node=nuc-04`   | Compute workloads                            |
 
-> **Note**: `nuc-01` is currently on a separate, unbridged network segment (`192.168.0.0/24`) from the rest of the swarm (`192.168.1.0/24`) and is unreachable from the manager — a physical networking issue, not an Ansible/inventory one. See git history around 2026-09 for context.
+The source of truth for IPs is `inventory/host_vars/nuc-XX.yml` (`static_ip`, `tailscale_ip`). All nodes are on `192.168.0.0/24` (`network_subnet`) and route to each other over it.
+
+> **Warning**: Do **not** remove the legacy `192.168.1.5X` secondary addresses. Swarm's raft-internal manager address is stuck at `192.168.1.54` and can't be changed (`--force-new-cluster` doesn't fix it). Removing those addresses breaks overlay-network DNS across the whole cluster.
+
+> **Firewall gotcha (nuc-01 NFS)**: after nuc-01 was power-cycled on 2026-09-28, the ufw `2049/111 from 192.168.0.0/24` rules showed in `ufw status` but weren't loaded into iptables. NFS mounts on every other node timed out (`failed to mount local volume ... connection timed out`). To check, compare `sudo ufw status | grep NFS` with `sudo iptables -L ufw-user-input -n | grep 2049`. `sudo ufw reload` on nuc-01 fixes it. SSH and the registry (:5000, published in host mode) keep working meanwhile, so they don't tell you whether NFS is reachable.
 
 **Access**: nodes are reached over Tailscale by default at `<host>.tailfe5b8d.ts.net` (e.g. `nuc-05.tailfe5b8d.ts.net`; IPs pinned as `tailscale_ip` in host_vars). WireGuard is the backup: `-e cluster_access=wireguard` (or `lan`). Prefer the MagicDNS names in configs and commands — see README "Tailscale".
 

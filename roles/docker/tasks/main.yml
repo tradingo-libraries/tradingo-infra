@@ -71,6 +71,18 @@
     - reload systemd
     - restart docker
 
+- name: Deploy Docker systemd ordering drop-in (start after ufw)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/after-ufw.conf
+    content: |
+      [Unit]
+      Wants=ufw.service
+      After=ufw.service
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart docker
+
 - name: Deploy Docker daemon config
   ansible.builtin.copy:
     content: "{{ docker_daemon_config | to_nice_json }}\n"

@@ -84,8 +84,8 @@
       - { port: "9090", name: "Prometheus" }
       - { port: "8888", name: "Jupyter" }
 
-# --- Manager-only ports ---
-- name: Allow NFS from LAN (manager only)
+# --- NFS server ports ---
+- name: Allow NFS from LAN (NFS servers only)
   community.general.ufw:
     rule: allow
     from_ip: "{{ network_subnet }}"
@@ -93,7 +93,7 @@
     proto: tcp
     comment: NFS
   loop: ["2049", "111"]
-  when: swarm_role == "manager"
+  when: inventory_hostname in groups['nfs_servers']
 
 - name: Allow WireGuard (manager only)
   community.general.ufw:
