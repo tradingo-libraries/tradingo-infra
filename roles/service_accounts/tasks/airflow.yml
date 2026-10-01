@@ -1,0 +1,45 @@
+---
+# roles/service_accounts/tasks/airflow.yml
+# Creates Airflow FAB users directly via the CLI inside the running
+# airflow-apiserver container (DB-level operation, no login/API call needed,
+# so no existing admin credential has to be read or handled).
+
+- name: Resolve airflow-apiserver container id
+  ansible.builtin.command:
+    cmd: "docker ps -q -f name=tradingo_airflow-apiserver"
+  register: _af_cid_raw
+  changed_when: false
+  check_mode: false
+
+- name: Fail if airflow-apiserver is not running
+  ansible.builtin.fail:
+    msg: "tradingo_airflow-apiserver has no running container — skip or deploy the stack first."
+  when: _af_cid_raw.stdout_lines | length == 0
+
+- name: Set airflow-apiserver container id fact
+  ansible.builtin.set_fact:
+    _af_cid: "{{ _af_cid_raw.stdout_lines[0] }}"
+
+- name: List existing Airflow users
+  ansible.builtin.command:
+    cmd: "docker exec {{ _af_cid }} airflow users list"
+  register: _af_users
+  changed_when: false
+  check_mode: false
+
+- name: "Create Airflow account"
+  ansible.builtin.command:
+    cmd: >
+      docker exec {{ _af_cid }} airflow users create
+      --username {{ item.username }}
+      --firstname {{ item.first_name }}
+      --lastname {{ item.last_name }}
+      --role Admin
+      --email {{ item.email }}
+      --password {{ service_account_passwords[item.username] }}
+  loop: "{{ service_accounts }}"
+  loop_control:
+    label: "{{ item.username }}"
+  when: item.username not in _af_users.stdout
+  no_log: true
+  changed_when: true

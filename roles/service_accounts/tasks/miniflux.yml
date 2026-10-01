@@ -1,0 +1,64 @@
+---
+# roles/service_accounts/tasks/miniflux.yml
+# Creates Miniflux users via its REST API, authenticating as the existing
+# admin using the miniflux_admin_password secret read from the live
+# container (never printed — no_log throughout).
+
+- name: Resolve miniflux container id
+  ansible.builtin.command:
+    cmd: "docker ps -q -f name=tradingo_miniflux"
+  register: _mf_cid_raw
+  changed_when: false
+  check_mode: false
+
+- name: Fail if miniflux is not running
+  ansible.builtin.fail:
+    msg: "tradingo_miniflux has no running container — skip or deploy the stack first."
+  when: _mf_cid_raw.stdout_lines | length == 0
+
+- name: Set miniflux container id fact
+  ansible.builtin.set_fact:
+    _mf_cid: "{{ _mf_cid_raw.stdout_lines[0] }}"
+
+- name: Read Miniflux admin password from the running container's mounted secret
+  ansible.builtin.command:
+    cmd: "docker exec {{ _mf_cid }} cat /run/secrets/miniflux_admin_password"
+  register: _mf_admin_pw
+  no_log: true
+  changed_when: false
+  check_mode: false
+
+- name: "Check whether Miniflux account exists"
+  ansible.builtin.uri:
+    url: "{{ miniflux_base_url | regex_replace('miniflux:8080', 'localhost:8084') }}/v1/users/{{ item.username }}"
+    method: GET
+    url_username: admin
+    url_password: "{{ _mf_admin_pw.stdout }}"
+    force_basic_auth: true
+    status_code: [200, 404]
+  loop: "{{ service_accounts }}"
+  loop_control:
+    label: "{{ item.username }}"
+  register: _mf_user_check
+  no_log: true
+  check_mode: false
+
+- name: "Create Miniflux account"
+  ansible.builtin.uri:
+    url: "{{ miniflux_base_url | regex_replace('miniflux:8080', 'localhost:8084') }}/v1/users"
+    method: POST
+    url_username: admin
+    url_password: "{{ _mf_admin_pw.stdout }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      username: "{{ item.item.username }}"
+      password: "{{ service_account_passwords[item.item.username] }}"
+      is_admin: false
+    status_code: [201, 400]
+  loop: "{{ _mf_user_check.results }}"
+  loop_control:
+    label: "{{ item.item.username }}"
+  when: item.status == 404
+  no_log: true
+  changed_when: true

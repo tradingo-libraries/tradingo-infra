@@ -1,0 +1,39 @@
+---
+# roles/service_accounts/tasks/grafana.yml
+# Creates Grafana login users via the admin HTTP API (mirrors the existing
+# mcp-client service-account pattern in roles/monitoring/tasks/main.yml).
+
+- name: "Check whether Grafana account exists"
+  ansible.builtin.uri:
+    url: "http://localhost:3000/api/users/lookup?loginOrEmail={{ item.username }}"
+    method: GET
+    url_username: admin
+    url_password: "{{ grafana_admin_password }}"
+    force_basic_auth: true
+    status_code: [200, 404]
+  loop: "{{ service_accounts }}"
+  loop_control:
+    label: "{{ item.username }}"
+  register: _grafana_user_check
+  check_mode: false
+
+- name: "Create Grafana account"
+  ansible.builtin.uri:
+    url: "http://localhost:3000/api/admin/users"
+    method: POST
+    url_username: admin
+    url_password: "{{ grafana_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: "{{ item.item.first_name }} {{ item.item.last_name }}"
+      login: "{{ item.item.username }}"
+      email: "{{ item.item.email }}"
+      password: "{{ service_account_passwords[item.item.username] }}"
+    status_code: [200, 412]
+  loop: "{{ _grafana_user_check.results }}"
+  loop_control:
+    label: "{{ item.item.username }}"
+  when: item.status == 404
+  no_log: true
+  changed_when: true

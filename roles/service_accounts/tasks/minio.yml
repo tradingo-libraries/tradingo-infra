@@ -1,0 +1,60 @@
+---
+# roles/service_accounts/tasks/minio.yml
+# MinIO's shell-less server image can't be exec'd into, so account creation
+# runs inside a throwaway minio/mc one-shot service (same pattern as the
+# `createbuckets` service in docker-stack.yaml) that reads the root
+# credential and the new accounts' passwords entirely from mounted Docker
+# secrets — no value ever passes through Ansible's own output.
+#
+# The whole block is skipped under --check: the launch step is a genuine
+# mutation with no dry-run equivalent, and the wait-loop below it isn't
+# check-mode aware (it would burn all its retries against a service that
+# was never actually created).
+
+- name: Provision MinIO accounts
+  when: not ansible_check_mode
+  block:
+    - name: Remove any leftover mc-provision-accounts service from a previous run
+      ansible.builtin.command:
+        cmd: "docker service rm mc-provision-accounts"
+      register: _mc_rm
+      failed_when: false
+      changed_when: _mc_rm.rc == 0
+
+    - name: Launch one-shot MinIO account provisioning service
+      ansible.builtin.command:
+        cmd: >
+          docker service create --name mc-provision-accounts
+          --restart-condition none
+          --network {{ minio_provision_network }}
+          --secret minio_root_password
+          {{ service_accounts | map(attribute='username') | map('regex_replace', '^(.*)$', '--secret svc_\1_password') | join(' ') }}
+          --constraint node.role==manager
+          {{ minio_provision_image }}
+          /bin/sh -c "ROOT_PW=$(cat /run/secrets/minio_root_password); until mc alias set local http://minio:9000 minioadmin \"$ROOT_PW\" >/dev/null 2>&1; do sleep 3; done; for U in {{ service_accounts | map(attribute='username') | join(' ') }}; do PW_FILE=/run/secrets/svc_${U}_password; [ -f \"$PW_FILE\" ] || continue; PW=$(cat \"$PW_FILE\"); mc admin user add local \"$U\" \"$PW\" || true; mc admin policy attach local {{ minio_policy }} --user \"$U\" || true; done; echo PROVISION_OK"
+      changed_when: true
+
+    - name: Wait for provisioning service task to reach a terminal state
+      ansible.builtin.command:
+        cmd: >
+          docker service ps mc-provision-accounts
+          --filter desired-state=shutdown
+          --format "{{ '{{' }}.CurrentState{{ '}}' }}"
+          --no-trunc
+      register: _mc_state
+      until: _mc_state.stdout != ""
+      retries: 20
+      delay: 5
+      changed_when: false
+
+    - name: Check provisioning succeeded
+      ansible.builtin.command:
+        cmd: "docker service logs mc-provision-accounts"
+      register: _mc_logs
+      changed_when: false
+      failed_when: "'PROVISION_OK' not in _mc_logs.stdout"
+
+    - name: Remove one-shot provisioning service
+      ansible.builtin.command:
+        cmd: "docker service rm mc-provision-accounts"
+      changed_when: true

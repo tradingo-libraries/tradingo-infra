@@ -1,0 +1,43 @@
+---
+# roles/service_accounts/tasks/main.yml
+
+- name: Ensure local credentials directory exists
+  ansible.builtin.file:
+    path: "{{ credentials_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Generate/persist per-account passwords (idempotent — reuses existing file)
+  ansible.builtin.set_fact:
+    service_account_passwords: "{{ service_account_passwords | default({}) | combine({item.username: lookup('ansible.builtin.password', credentials_dir + '/' + item.username + '.pass chars=ascii_letters,digits length=32')}) }}"
+  loop: "{{ service_accounts }}"
+  loop_control:
+    label: "{{ item.username }}"
+  no_log: true
+  run_once: true
+
+- name: Ensure svc_<username>_password Docker secrets exist (create-if-missing, never rotates)
+  ansible.builtin.include_tasks: secret.yml
+  loop: "{{ service_accounts }}"
+  loop_control:
+    loop_var: account
+    label: "{{ account.username }}"
+
+- name: Provision Airflow accounts
+  ansible.builtin.include_tasks: airflow.yml
+  when: "'airflow' in service_accounts_targets"
+
+- name: Provision Grafana accounts
+  ansible.builtin.include_tasks: grafana.yml
+  when: "'grafana' in service_accounts_targets"
+
+- name: Provision Miniflux accounts
+  ansible.builtin.include_tasks: miniflux.yml
+  when: "'miniflux' in service_accounts_targets"
+
+- name: Provision MinIO accounts
+  ansible.builtin.include_tasks: minio.yml
+  when: "'minio' in service_accounts_targets"

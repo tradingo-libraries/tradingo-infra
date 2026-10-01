@@ -199,7 +199,10 @@ services:
           memory: 1G
 
   grafana-mcp:
-    image: grafana/mcp-grafana:latest
+    # Pinned (not :latest): --allowed-hosts/--allowed-origins were added in 1.6.x.
+    # Without them, mcp-go's DNS-rebinding protection rejects every remote client
+    # (Host header is the external Tailscale name, not the loopback default it expects).
+    image: grafana/mcp-grafana:1.6.1
     networks:
       - monitoring
     ports:
@@ -214,6 +217,10 @@ services:
       - "streamable-http"
       - "--address"
       - "0.0.0.0:8000"
+      - "--allowed-hosts"
+      - "nuc-05.tailfe5b8d.ts.net:8766,nuc-02.tailfe5b8d.ts.net:8766,localhost:8766"
+      - "--allowed-origins"
+      - "*"
     deploy:
       mode: replicated
       replicas: 1

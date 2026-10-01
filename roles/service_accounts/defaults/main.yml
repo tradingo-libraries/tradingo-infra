@@ -1,0 +1,39 @@
+---
+# roles/service_accounts/defaults/main.yml
+#
+# Provisions the same two accounts across every login-gated service in the
+# stack: a generic "tradingo" service identity (for automation, e.g. minting
+# short-lived MCP tokens) and a personal "rory" identity. Passwords are
+# generated once and persisted locally on the Ansible controller so they
+# never need to be re-entered or re-generated on subsequent runs.
+
+credentials_dir: "{{ playbook_dir }}/../.credentials"
+
+service_accounts:
+  - username: tradingo
+    first_name: Tradingo
+    last_name: Service
+    email: tradingo@rorymcstay.com
+  - username: rory
+    first_name: Rory
+    last_name: McStay
+    email: rory@rorymcstay.com
+
+# Which backends to provision. Override with -e service_accounts_targets=...
+# to limit a run to a subset, e.g. -e '{"service_accounts_targets":["grafana"]}'
+service_accounts_targets:
+  - airflow
+  - grafana
+  - miniflux
+  - minio
+
+minio_provision_image: "192.168.0.50:5000/minio/mc:latest"
+minio_provision_network: "tradingo_tradingo-backend"
+minio_policy: "readwrite"
+
+miniflux_base_url: "http://miniflux:8080"
+
+# Same default as roles/monitoring/defaults/main.yml — duplicated here since
+# this role doesn't include the monitoring role. Override with
+# -e grafana_admin_password=... if it's been changed from the default.
+grafana_admin_password: admin
