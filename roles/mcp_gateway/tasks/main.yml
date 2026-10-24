@@ -1,0 +1,131 @@
+---
+# roles/mcp_gateway/tasks/main.yml
+
+- name: Remove mcp-gateway
+  when: mcp_gateway_state == "absent"
+  block:
+    - name: Turn off Tailscale Funnel
+      ansible.builtin.command: tailscale funnel --https=443 off
+      register: funnel_off
+      failed_when: false
+      changed_when: funnel_off.rc == 0
+
+    - name: Remove mcp-gateway stack
+      ansible.builtin.command: docker stack rm mcp-gateway
+      register: stack_rm
+      failed_when: stack_rm.rc != 0 and 'not found' not in stack_rm.stderr
+      changed_when: stack_rm.rc == 0
+
+    - name: Remove config directory
+      ansible.builtin.file:
+        path: "{{ mcp_gateway_config_dir }}"
+        state: absent
+
+- name: Deploy mcp-gateway
+  when: mcp_gateway_state == "present"
+  block:
+    - name: Verify required secrets exist (run setup-mcp-gateway.yml first)
+      ansible.builtin.command: "docker secret inspect {{ item }}"
+      loop: >-
+        {{ ['mcp_gateway_github_client_id', 'mcp_gateway_github_client_secret', 'mcp_gateway_jwt_key']
+           + (['docker_mcp_access_token'] if mcp_gateway_expose_docker else []) }}
+      changed_when: false
+
+    - name: Create config directory
+      ansible.builtin.file:
+        path: "{{ mcp_gateway_config_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy image build files
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ mcp_gateway_config_dir }}/{{ item }}"
+        mode: "0644"
+      loop:
+        - Dockerfile
+        - requirements.txt
+        - gateway.py
+
+    - name: Build mcp-gateway image
+      ansible.builtin.command:
+        cmd: docker build -t {{ mcp_gateway_image }} {{ mcp_gateway_config_dir }}
+      changed_when: true
+
+    - name: Push image to registry
+      ansible.builtin.command:
+        cmd: docker push {{ mcp_gateway_image }}
+      changed_when: true
+
+    - name: Template mcp-gateway stack file
+      ansible.builtin.template:
+        src: mcp-gateway-stack.yml.j2
+        dest: "{{ mcp_gateway_config_dir }}/mcp-gateway-stack.yml"
+        mode: "0644"
+
+    - name: Deploy mcp-gateway stack
+      ansible.builtin.command:
+        cmd: >
+          docker stack deploy
+          -c {{ mcp_gateway_config_dir }}/mcp-gateway-stack.yml
+          mcp-gateway
+      changed_when: true
+
+    # The image tag is :latest, so force a rolling restart to pick up a rebuild.
+    - name: Restart service to pick up the new image
+      ansible.builtin.command:
+        cmd: docker service update --force --image {{ mcp_gateway_image }} mcp-gateway_mcp-gateway
+      changed_when: true
+
+    - name: Wait for gateway health check
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ mcp_gateway_port }}/healthz"
+        return_content: true
+      register: gateway_health
+      until: gateway_health.status == 200
+      retries: 30
+      delay: 3
+
+    - name: Show gateway backends
+      ansible.builtin.debug:
+        msg: "{{ gateway_health.json }}"
+
+    - name: Expose gateway publicly with Tailscale Funnel
+      when: mcp_gateway_funnel | bool
+      block:
+        - name: Configure Funnel (https://{{ inventory_hostname }}.{{ tailscale_tailnet }} -> :{{ mcp_gateway_port }})
+          ansible.builtin.command:
+            cmd: tailscale funnel --bg --https=443 http://127.0.0.1:{{ mcp_gateway_port }}
+          register: funnel_on
+          changed_when: true
+      rescue:
+        - name: Explain Funnel failure
+          ansible.builtin.fail:
+            msg: |
+              tailscale funnel failed: {{ funnel_on.stderr | default(funnel_on.msg) }}
+
+              Funnel must be allowed for this node in the tailnet policy. In
+              https://login.tailscale.com/admin/dns turn on MagicDNS and HTTPS
+              Certificates, then in https://login.tailscale.com/admin/acls add:
+
+                "nodeAttrs": [{"target": ["{{ tailscale_ip | default(inventory_hostname) }}"], "attr": ["funnel"]}]
+
+              and re-run this playbook.
+
+    - name: Turn off Tailscale Funnel
+      when: not (mcp_gateway_funnel | bool)
+      ansible.builtin.command: tailscale funnel --https=443 off
+      register: funnel_off
+      failed_when: false
+      changed_when: funnel_off.rc == 0
+
+    - name: Read Funnel status
+      ansible.builtin.command: tailscale funnel status
+      register: funnel_status
+      changed_when: false
+
+    - name: Show connector URLs
+      ansible.builtin.debug:
+        msg: >-
+          {{ ['Funnel: '] + funnel_status.stdout_lines + ['', 'Add these as custom connectors in Claude:']
+             + (gateway_health.json.backends | map('regex_replace', '^(.*)$', mcp_gateway_public_url ~ '/\1/mcp') | list) }}

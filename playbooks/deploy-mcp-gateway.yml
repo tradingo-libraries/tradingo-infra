@@ -1,0 +1,27 @@
+---
+# playbooks/deploy-mcp-gateway.yml — Public HTTPS + OAuth gateway for the MCP servers
+#
+# Builds the gateway image on the manager, deploys it as the `mcp-gateway`
+# stack, and points Tailscale Funnel (public https on :443) at it. Each MCP
+# server becomes a Claude custom connector at:
+#   https://nuc-05.tailfe5b8d.ts.net/<name>/mcp     (tradingo, grafana, airflow, web-search)
+# Sign-in is GitHub OAuth, limited to mcp_gateway_allowed_users.
+#
+# Prerequisites (once):
+#   - Tailnet: MagicDNS + HTTPS certificates on, and the `funnel` node
+#     attribute granted to nuc-05 (the role prints the exact policy snippet
+#     if it's missing).
+#   - ansible-playbook playbooks/setup-mcp-gateway.yml   (GitHub OAuth secrets)
+#   - grafana-mcp allows the gateway's Host header: make deploy-monitoring
+#
+# Usage:
+#   ansible-playbook playbooks/deploy-mcp-gateway.yml
+#   ansible-playbook playbooks/deploy-mcp-gateway.yml -e mcp_gateway_expose_docker=true
+#   ansible-playbook playbooks/deploy-mcp-gateway.yml -e mcp_gateway_funnel=false   # tailnet only
+#   ansible-playbook playbooks/deploy-mcp-gateway.yml -e mcp_gateway_state=absent   # tear down
+
+- name: Deploy mcp-gateway
+  hosts: managers
+  become: true
+  roles:
+    - mcp_gateway

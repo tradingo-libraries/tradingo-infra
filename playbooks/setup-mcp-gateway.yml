@@ -1,0 +1,87 @@
+---
+# playbooks/setup-mcp-gateway.yml — Create the mcp-gateway secrets
+#
+# Run once before the first deploy, or to rotate credentials.
+#
+# 1. Create a GitHub OAuth App at https://github.com/settings/applications/new
+#      Homepage URL:               https://nuc-05.tailfe5b8d.ts.net
+#      Authorization callback URL: https://nuc-05.tailfe5b8d.ts.net/
+#    (the trailing-slash root lets every connector's /<name>/auth/callback match)
+#    Then "Generate a new client secret".
+# 2. ansible-playbook playbooks/setup-mcp-gateway.yml
+#    (prompts for the client ID and secret; the JWT signing key is generated)
+#
+# Rotating the JWT key signs everyone out: Claude will ask you to reconnect.
+
+- name: Create mcp-gateway secrets
+  hosts: managers
+  become: true
+  vars_prompt:
+    - name: github_client_id
+      prompt: "GitHub OAuth app client ID"
+      private: false
+    - name: github_client_secret
+      prompt: "GitHub OAuth app client secret"
+      private: true
+    - name: rotate_jwt_key
+      prompt: "Rotate the JWT signing key? (signs out all clients) [y/N]"
+      private: false
+      default: "n"
+
+  tasks:
+    - name: Check whether the mcp-gateway stack is running
+      ansible.builtin.command: docker stack services mcp-gateway -q
+      register: stack_check
+      failed_when: false
+      changed_when: false
+
+    # Secrets in use by a service can't be removed, so take it down first.
+    - name: Remove mcp-gateway stack so secrets can be replaced
+      ansible.builtin.command: docker stack rm mcp-gateway
+      when: stack_check.rc == 0 and stack_check.stdout | length > 0
+      changed_when: true
+
+    - name: Wait for the stack's tasks to stop
+      ansible.builtin.command: docker ps -q --filter label=com.docker.stack.namespace=mcp-gateway
+      register: running
+      until: running.stdout | length == 0
+      retries: 20
+      delay: 3
+      changed_when: false
+
+    - name: Check existing secrets
+      ansible.builtin.command: "docker secret inspect {{ item }}"
+      loop: [mcp_gateway_github_client_id, mcp_gateway_github_client_secret, mcp_gateway_jwt_key]
+      register: existing
+      failed_when: false
+      changed_when: false
+
+    - name: Remove old GitHub secrets
+      ansible.builtin.command: "docker secret rm {{ item.item }}"
+      loop: "{{ existing.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: >-
+        item.rc == 0 and (item.item != 'mcp_gateway_jwt_key' or rotate_jwt_key | lower == 'y')
+      changed_when: true
+
+    - name: Create GitHub OAuth secrets
+      ansible.builtin.shell:
+        cmd: "printf '%s' {{ item.value | quote }} | docker secret create {{ item.name }} -"
+      loop:
+        - {name: mcp_gateway_github_client_id, value: "{{ github_client_id }}"}
+        - {name: mcp_gateway_github_client_secret, value: "{{ github_client_secret }}"}
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: true
+      no_log: true
+
+    - name: Create JWT signing key
+      ansible.builtin.shell:
+        cmd: "openssl rand -hex 32 | tr -d '\\n' | docker secret create mcp_gateway_jwt_key -"
+      when: existing.results[2].rc != 0 or rotate_jwt_key | lower == 'y'
+      changed_when: true
+
+    - name: Next step
+      ansible.builtin.debug:
+        msg: "Secrets ready. Deploy with: ansible-playbook playbooks/deploy-mcp-gateway.yml"

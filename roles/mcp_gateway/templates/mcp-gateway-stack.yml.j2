@@ -1,0 +1,78 @@
+# {{ ansible_managed }}
+{% set backends = mcp_gateway_backends + ([mcp_gateway_docker_backend] if mcp_gateway_expose_docker else []) %}
+{% set networks = mcp_gateway_networks + (['docker-mcp_docker-mcp'] if mcp_gateway_expose_docker else []) %}
+version: "3.8"
+
+services:
+  mcp-gateway:
+    image: {{ mcp_gateway_image }}
+    environment:
+      MCP_GATEWAY_PUBLIC_URL: "{{ mcp_gateway_public_url }}"
+      MCP_GATEWAY_ALLOWED_USERS: "{{ mcp_gateway_allowed_users | join(',') }}"
+      MCP_GATEWAY_BACKENDS: '{{ backends | to_json }}'
+      MCP_GATEWAY_PORT: "{{ mcp_gateway_port }}"
+      MCP_GATEWAY_GITHUB_CLIENT_ID_FILE: /run/secrets/mcp_gateway_github_client_id
+      MCP_GATEWAY_GITHUB_CLIENT_SECRET_FILE: /run/secrets/mcp_gateway_github_client_secret
+      MCP_GATEWAY_JWT_KEY_FILE: /run/secrets/mcp_gateway_jwt_key
+    secrets:
+      - mcp_gateway_github_client_id
+      - mcp_gateway_github_client_secret
+      - mcp_gateway_jwt_key
+{% if mcp_gateway_expose_docker %}
+      - docker_mcp_access_token
+{% endif %}
+    volumes:
+      - mcp-gateway-data:/data
+    networks:
+{% for n in networks %}
+      - {{ n }}
+{% endfor %}
+    ports:
+      # Host mode on the manager: Tailscale Funnel on this node forwards here.
+      - target: {{ mcp_gateway_port }}
+        published: {{ mcp_gateway_port }}
+        protocol: tcp
+        mode: host
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:{{ mcp_gateway_port }}/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    stop_grace_period: 15s
+    deploy:
+      # Single replica: OAuth state and MCP sessions live in this process and
+      # its node-local volume, and the Funnel points at this node.
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 96M
+
+volumes:
+  mcp-gateway-data:
+
+secrets:
+  mcp_gateway_github_client_id:
+    external: true
+  mcp_gateway_github_client_secret:
+    external: true
+  mcp_gateway_jwt_key:
+    external: true
+{% if mcp_gateway_expose_docker %}
+  docker_mcp_access_token:
+    external: true
+{% endif %}
+
+networks:
+{% for n in networks %}
+  {{ n }}:
+    external: true
+{% endfor %}

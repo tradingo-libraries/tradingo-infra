@@ -1,0 +1,46 @@
+---
+# roles/mcp_gateway/defaults/main.yml
+
+mcp_gateway_state: present
+mcp_gateway_config_dir: /opt/mcp-gateway
+mcp_gateway_image: "{{ registry_host }}/mcp-gateway:latest"
+# Published in host mode on the manager. Tailscale Funnel forwards public
+# https://<host>.<tailnet>:443 to this port.
+mcp_gateway_port: 8770
+
+# Public URL. Must match what Tailscale Funnel serves, and the GitHub OAuth
+# app's callback URL must be this URL with a trailing slash.
+mcp_gateway_public_url: "https://{{ inventory_hostname }}.{{ tailscale_tailnet }}"
+
+# GitHub logins allowed in. Anyone else is rejected, even after a successful
+# GitHub login.
+mcp_gateway_allowed_users:
+  - rorymcstay
+
+# Turn the public Funnel on/off. Off: the gateway still runs, reachable only
+# on the tailnet/LAN at http://<host>:<port>.
+mcp_gateway_funnel: true
+
+# Backends exposed at <public_url>/<name>/mcp. URLs use full Swarm service
+# names on the overlay networks in mcp_gateway_networks.
+mcp_gateway_backends:
+  - name: tradingo
+    url: http://tradingo_tradingo-mcp:8765/mcp
+  - name: grafana
+    url: http://monitoring_grafana-mcp:8000/mcp
+  - name: airflow
+    url: http://tradingo_airflow-mcp:8767/mcp
+  - name: web-search
+    url: http://web-search-mcp_web-search-mcp:8768/mcp
+
+# docker-mcp gives root-level control of the Swarm manager (it mounts
+# docker.sock), so it is off by default. Set true to expose it at /docker/mcp.
+mcp_gateway_expose_docker: false
+mcp_gateway_docker_backend:
+  name: docker
+  url: http://docker-mcp_docker-mcp:8000/mcp/
+  bearer_secret: /run/secrets/docker_mcp_access_token
+
+mcp_gateway_networks:
+  - tradingo_tradingo-backend
+  - monitoring
