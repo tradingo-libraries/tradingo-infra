@@ -20,9 +20,12 @@
     flat: true
   delegate_to: gateway
 
+# Strip any DNS= line: client-*.conf files carry one for laptops/phones, and on a
+# server wg-quick would register it on wg0 with the ~. route, sending all host DNS
+# through the tunnel (broke nuc-03 image pulls, 2026-10).
 - name: Deploy WireGuard peer config
   ansible.builtin.copy:
-    src: /tmp/{{ wg_peer_config_file }}
+    content: "{{ lookup('ansible.builtin.file', '/tmp/' ~ wg_peer_config_file) | regex_replace('(?m)^DNS\\s*=.*\\n?', '') }}\n"
     dest: "/etc/wireguard/{{ wg_interface }}.conf"
     mode: "0600"
   notify: restart wireguard peer
