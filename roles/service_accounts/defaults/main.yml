@@ -37,3 +37,7 @@ miniflux_base_url: "http://miniflux:8080"
 # this role doesn't include the monitoring role. Override with
 # -e grafana_admin_password=... if it's been changed from the default.
 grafana_admin_password: admin
+
+# Viewer service account whose token backs the tradingo `homepage` health line.
+grafana_homepage_account: homepage
+grafana_homepage_secret: grafana_homepage_token

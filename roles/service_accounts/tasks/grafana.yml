@@ -37,3 +37,82 @@
   when: item.status == 404
   no_log: true
   changed_when: true
+
+# --- Viewer service account + token for the tradingo `homepage` service ---
+# The token lands straight in the grafana_homepage_token Docker secret (read by
+# tradingo-plat/scripts/homepage). Create-if-missing: a secret in use by a
+# service can't be replaced, so to rotate, remove the homepage service and the
+# secret, then re-run this.
+
+- name: "Check whether secret {{ grafana_homepage_secret }} exists"
+  ansible.builtin.command:
+    cmd: "docker secret inspect {{ grafana_homepage_secret }}"
+  register: _homepage_secret_check
+  failed_when: false
+  changed_when: false
+
+- name: "Ensure {{ grafana_homepage_account }} Grafana service account exists"
+  ansible.builtin.uri:
+    url: "http://localhost:3000/api/serviceaccounts"
+    method: POST
+    url_username: admin
+    url_password: "{{ grafana_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: "{{ grafana_homepage_account }}"
+      role: Viewer
+    status_code: [200, 201, 400, 409]
+  register: _homepage_sa_create
+  changed_when: _homepage_sa_create.status in [200, 201]
+
+- name: "Mint token and store it as {{ grafana_homepage_secret }}"
+  when: _homepage_secret_check.rc != 0
+  block:
+    - name: "Fetch {{ grafana_homepage_account }} service account"
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/serviceaccounts/search?query={{ grafana_homepage_account }}&limit=1"
+        url_username: admin
+        url_password: "{{ grafana_admin_password }}"
+        force_basic_auth: true
+      register: _homepage_sa
+
+    - name: "List existing tokens for {{ grafana_homepage_account }}"
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/serviceaccounts/{{ _homepage_sa.json.serviceAccounts[0].id }}/tokens"
+        url_username: admin
+        url_password: "{{ grafana_admin_password }}"
+        force_basic_auth: true
+      register: _homepage_tokens
+
+    - name: Delete orphaned homepage tokens (secret is missing, so nothing uses them)
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/serviceaccounts/{{ _homepage_sa.json.serviceAccounts[0].id }}/tokens/{{ item.id }}"
+        method: DELETE
+        url_username: admin
+        url_password: "{{ grafana_admin_password }}"
+        force_basic_auth: true
+        status_code: [200, 204]
+      loop: "{{ _homepage_tokens.json | selectattr('name', 'equalto', grafana_homepage_account) | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: "Create {{ grafana_homepage_account }} token"
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/serviceaccounts/{{ _homepage_sa.json.serviceAccounts[0].id }}/tokens"
+        method: POST
+        url_username: admin
+        url_password: "{{ grafana_admin_password }}"
+        force_basic_auth: true
+        body_format: json
+        body:
+          name: "{{ grafana_homepage_account }}"
+        status_code: [200, 201]
+      register: _homepage_token
+      no_log: true
+
+    - name: "Create secret {{ grafana_homepage_secret }}"
+      ansible.builtin.shell:
+        cmd: "printf '%s' {{ _homepage_token.json.key | quote }} | docker secret create {{ grafana_homepage_secret }} -"
+      no_log: true
+      changed_when: true
