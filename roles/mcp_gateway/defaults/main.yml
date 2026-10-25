@@ -4,21 +4,28 @@
 mcp_gateway_state: present
 mcp_gateway_config_dir: /opt/mcp-gateway
 mcp_gateway_image: "{{ registry_host }}/mcp-gateway:latest"
-# Published in host mode on the manager. Tailscale Funnel forwards public
-# https://<host>.<tailnet>:443 to this port.
 mcp_gateway_port: 8770
+
+# The gateway is fronted by a Tailscale sidecar container that joins the tailnet
+# as its own node, so the public name is https://tradingo-mcps.<tailnet>.
+# (Funnel can't front a Tailscale Service, so this is a node, not a Service.)
+mcp_gateway_hostname: tradingo-mcps
+mcp_gateway_tailscale_image: tailscale/tailscale:v1.84.3
+# The auth key (docker secret mcp_gateway_tailscale_authkey) must be tagged with
+# this, and the tag needs the `funnel` nodeAttr in the tailnet policy.
+mcp_gateway_tailscale_tag: tag:tradingo-mcps
 
 # Public URL. Must match what Tailscale Funnel serves, and the GitHub OAuth
 # app's callback URL must be this URL with a trailing slash.
-mcp_gateway_public_url: "https://{{ inventory_hostname }}.{{ tailscale_tailnet }}"
+mcp_gateway_public_url: "https://{{ mcp_gateway_hostname }}.{{ tailscale_tailnet }}"
 
 # GitHub logins allowed in. Anyone else is rejected, even after a successful
 # GitHub login.
 mcp_gateway_allowed_users:
   - rorymcstay
 
-# Turn the public Funnel on/off. Off: the gateway still runs, reachable only
-# on the tailnet/LAN at http://<host>:<port>.
+# Turn the public Funnel on/off. Off: tradingo-mcps is still served over HTTPS
+# but only to the tailnet (claude.ai connectors can't reach it).
 mcp_gateway_funnel: true
 
 # Backends exposed at <public_url>/<name>/mcp. URLs use full Swarm service

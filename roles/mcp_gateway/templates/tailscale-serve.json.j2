@@ -1,0 +1,11 @@
+{
+  "TCP": {"443": {"HTTPS": true}},
+  "Web": {
+    "${TS_CERT_DOMAIN}:443": {
+      "Handlers": {"/": {"Proxy": "http://mcp-gateway:{{ mcp_gateway_port }}"}}
+    }
+  }{% if mcp_gateway_funnel | bool %},
+  "AllowFunnel": {"${TS_CERT_DOMAIN}:443": true}
+{% endif %}
+
+}

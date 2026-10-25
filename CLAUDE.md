@@ -110,17 +110,24 @@ Four stacks are active plus two standalone services. Replicas reflect the runnin
 
 ---
 
+### Tailscale Services (`roles/tailscale_services/`, `playbooks/deploy-tailscale-services.yml`)
+
+Web UIs are tailnet-only HTTPS on 443, no port: `https://<name>.tailfe5b8d.ts.net` for `tradingo` (landing page), `airflow`, `grafana`, `monitor`, `research`, `dtale`, `jupyter`, `flower`, `miniflux`, `minio`. Each is a Tailscale Service hosted by nuc-05 (`tailscale serve --service=svc:<name> --https=443 http://127.0.0.1:<ingress port>`). Names are single labels because MagicDNS can't do nested names. Needs a one-time tailnet policy (host tag `tag:tradingo-host`, autoApprovers + grants for each `svc:`; see the role header) and the host node tagged. The list lives in `tailscale_services` in the role defaults; the landing page in tradingo-plat derives its links from the same names.
+
+---
+
 ### `mcp-gateway` stack (`roles/mcp_gateway/`, `playbooks/deploy-mcp-gateway.yml`)
 
 | Service       | Image                                  | Placement        | Port        | Notes |
 |---------------|----------------------------------------|------------------|-------------|-------|
 | `mcp-gateway` | `192.168.0.50:5000/mcp-gateway:latest` | manager (nuc-05) | 8770 (host) | Public OAuth front door for the MCP servers |
+| `tailscale`   | `tailscale/tailscale`                  | manager (nuc-05) | none        | Sidecar: joins the tailnet as `tradingo-mcps`, serves HTTPS + Funnel → `mcp-gateway:8770` |
 
-**Public**: Tailscale Funnel on nuc-05 serves `https://nuc-05.tailfe5b8d.ts.net` (port 443) → `127.0.0.1:8770`. This is the only service reachable from the internet. Each backend is a separate Claude custom connector at `https://nuc-05.tailfe5b8d.ts.net/<name>/mcp` (`tradingo`, `grafana`, `airflow`, `web-search`; `docker` only with `-e mcp_gateway_expose_docker=true`).
+**Public**: the `tailscale` sidecar is its own tailnet node, `tradingo-mcps`, and serves `https://tradingo-mcps.tailfe5b8d.ts.net` (port 443) with Funnel. This is the only service reachable from the internet; the host-level Funnel on nuc-05 is turned off on every deploy. Funnel can't front a Tailscale Service, hence a node rather than a Service. Each backend is a separate Claude custom connector at `https://tradingo-mcps.tailfe5b8d.ts.net/<name>/mcp` (`tradingo`, `grafana`, `airflow`, `web-search`; `docker` only with `-e mcp_gateway_expose_docker=true`).
 
 **Auth**: GitHub OAuth (FastMCP 4.1.3 OAuth proxy), allowed only for logins in `mcp_gateway_allowed_users`, consent screen on, client redirect URIs limited to claude.ai/claude.com plus localhost. Each connector has its own signing key, so a token for one connector doesn't work on another. Client registrations and tokens persist in the `mcp-gateway_mcp-gateway-data` volume on nuc-05.
 
-**Setup**: one GitHub OAuth app (callback `https://nuc-05.tailfe5b8d.ts.net/`) → `playbooks/setup-mcp-gateway.yml` (secrets) → `playbooks/deploy-mcp-gateway.yml`. Funnel needs the `funnel` nodeAttr for nuc-05 in the tailnet policy. Tests: `cd roles/mcp_gateway/files && uv run --with-requirements requirements.txt --with pytest --with httpx pytest -q`.
+**Setup**: one GitHub OAuth app (callback `https://tradingo-mcps.tailfe5b8d.ts.net/`) + a reusable Tailscale auth key tagged `tag:tradingo-mcps` → `playbooks/setup-mcp-gateway.yml` (secrets) → `playbooks/deploy-mcp-gateway.yml`. The tag needs `tagOwners` and the `funnel` nodeAttr in the tailnet policy. Tests: `cd roles/mcp_gateway/files && uv run --with-requirements requirements.txt --with pytest --with httpx pytest -q`.
 
 **Gotchas**: backends are addressed by full Swarm service names (`tradingo_tradingo-mcp` etc.) over the overlay networks; grafana-mcp's `--allowed-hosts` must include `monitoring_grafana-mcp:8000`, otherwise the gateway's proxy shows Grafana with **0 tools** (the 403 is swallowed, not raised). The gateway takes ~8s to start on nuc-05.
 

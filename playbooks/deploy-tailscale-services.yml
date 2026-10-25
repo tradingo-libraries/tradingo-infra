@@ -1,0 +1,21 @@
+---
+# playbooks/deploy-tailscale-services.yml — HTTPS, port-less, tailnet-only URLs
+#
+# Publishes each web UI as a Tailscale Service:
+#   https://tradingo.tailfe5b8d.ts.net    landing page
+#   https://airflow.tailfe5b8d.ts.net     (grafana, monitor, research, dtale, jupyter, flower, miniflux, minio)
+# Reachable only from inside the tailnet. The MCP gateway is separate
+# (deploy-mcp-gateway.yml, https://tradingo-mcps.tailfe5b8d.ts.net).
+#
+# Prerequisites (once): tailnet policy + tagged host, see
+# roles/tailscale_services/tasks/main.yml.
+#
+# Usage:
+#   ansible-playbook playbooks/deploy-tailscale-services.yml
+#   ansible-playbook playbooks/deploy-tailscale-services.yml -e tailscale_services_state=absent
+
+- name: Publish Tailscale Services
+  hosts: managers
+  become: true
+  roles:
+    - tailscale_services

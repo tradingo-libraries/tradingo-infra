@@ -1,0 +1,62 @@
+---
+# roles/tailscale_services/tasks/main.yml
+#
+# Idempotent: `tailscale serve --service` replaces the service's config.
+#
+# One-time tailnet policy (https://login.tailscale.com/admin/acls), plus each
+# service defined under Services in the admin console with endpoint tcp:443:
+#
+#   "tagOwners":     {"tag:tradingo-host": ["autogroup:admin"]},
+#   "autoApprovers": {"services": {"svc:tradingo": ["tag:tradingo-host"], ...one per service...}},
+#   "grants":        [{"src": ["autogroup:member"], "dst": ["svc:tradingo", ...], "ip": ["tcp:443"]}]
+#
+# then tag the host: sudo tailscale up --advertise-tags=tag:tradingo-host
+# (or set the tag on the machine in the admin console).
+
+- name: Read Tailscale state
+  ansible.builtin.command: tailscale status --json
+  register: ts_state
+  changed_when: false
+
+- name: Require the host node to be tagged
+  ansible.builtin.assert:
+    that: tailscale_services_host_tag in ((ts_state.stdout | from_json).Self.Tags | default([]))
+    fail_msg: >-
+      {{ inventory_hostname }} is not tagged {{ tailscale_services_host_tag }}. Tailscale
+      Services can only be hosted by tagged nodes: add the tag in tagOwners, then run
+      `sudo tailscale up --advertise-tags={{ tailscale_services_host_tag }}` (or set it in the
+      admin console). See the header of roles/tailscale_services/tasks/main.yml.
+    quiet: true
+  when: tailscale_services_state == "present"
+
+- name: Serve each service over HTTPS
+  ansible.builtin.command: >-
+    tailscale serve --service=svc:{{ item.name }} --bg --https=443 http://127.0.0.1:{{ item.port }}
+  loop: "{{ tailscale_services }}"
+  loop_control:
+    label: "svc:{{ item.name }} -> 127.0.0.1:{{ item.port }}"
+  when: tailscale_services_state == "present"
+  changed_when: true
+
+- name: Stop serving
+  ansible.builtin.command: tailscale serve clear svc:{{ item.name }}
+  loop: "{{ tailscale_services }}"
+  loop_control:
+    label: "svc:{{ item.name }}"
+  when: tailscale_services_state == "absent"
+  failed_when: false
+  changed_when: true
+
+- name: Read serve status
+  ansible.builtin.command: tailscale serve status
+  register: serve_status
+  changed_when: false
+  when: tailscale_services_state == "present"
+
+- name: Show serve status and URLs
+  ansible.builtin.debug:
+    msg: >-
+      {{ serve_status.stdout_lines + ['']
+         + (tailscale_services | map(attribute='name') | map('regex_replace', '^(.*)$', 'https://\1.' ~ tailscale_tailnet) | list)
+         + ['', 'A service shows as pending until it is approved (autoApprovers or admin console).'] }}
+  when: tailscale_services_state == "present"

@@ -28,7 +28,8 @@ services:
       - {{ n }}
 {% endfor %}
     ports:
-      # Host mode on the manager: Tailscale Funnel on this node forwards here.
+      # Host mode on the manager: used for the deploy health check. The public
+      # path is the `tailscale` sidecar below, over the overlay network.
       - target: {{ mcp_gateway_port }}
         published: {{ mcp_gateway_port }}
         protocol: tcp
@@ -42,7 +43,7 @@ services:
     stop_grace_period: 15s
     deploy:
       # Single replica: OAuth state and MCP sessions live in this process and
-      # its node-local volume, and the Funnel points at this node.
+      # its node-local volume.
       replicas: 1
       placement:
         constraints:
@@ -56,10 +57,52 @@ services:
         reservations:
           memory: 96M
 
+  # Its own tailnet node, `{{ mcp_gateway_hostname }}`: Funnel can't front a Tailscale
+  # Service, so the public name is a node. Userspace networking, no host access.
+  tailscale:
+    image: {{ mcp_gateway_tailscale_image }}
+    entrypoint:
+      - sh
+      - -c
+      - 'export TS_AUTHKEY="$$(cat /run/secrets/mcp_gateway_tailscale_authkey)"; exec /usr/local/bin/containerboot'
+    environment:
+      TS_HOSTNAME: "{{ mcp_gateway_hostname }}"
+      TS_USERSPACE: "true"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_EXTRA_ARGS: "--advertise-tags={{ mcp_gateway_tailscale_tag }}"
+    secrets:
+      - mcp_gateway_tailscale_authkey
+    configs:
+      - source: mcp_gateway_tailscale_serve
+        target: /config/serve.json
+    volumes:
+      - mcp-gateway-tailscale:/var/lib/tailscale
+    networks:
+      - {{ mcp_gateway_networks[0] }}
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 128M
+
 volumes:
   mcp-gateway-data:
+  mcp-gateway-tailscale:
+
+configs:
+  mcp_gateway_tailscale_serve:
+    file: {{ mcp_gateway_config_dir }}/tailscale-serve.json
 
 secrets:
+  mcp_gateway_tailscale_authkey:
+    external: true
   mcp_gateway_github_client_id:
     external: true
   mcp_gateway_github_client_secret:

@@ -27,7 +27,7 @@
     - name: Verify required secrets exist (run setup-mcp-gateway.yml first)
       ansible.builtin.command: "docker secret inspect {{ item }}"
       loop: >-
-        {{ ['mcp_gateway_github_client_id', 'mcp_gateway_github_client_secret', 'mcp_gateway_jwt_key']
+        {{ ['mcp_gateway_github_client_id', 'mcp_gateway_github_client_secret', 'mcp_gateway_jwt_key', 'mcp_gateway_tailscale_authkey']
            + (['docker_mcp_access_token'] if mcp_gateway_expose_docker else []) }}
       changed_when: false
 
@@ -56,6 +56,12 @@
       ansible.builtin.command:
         cmd: docker push {{ mcp_gateway_image }}
       changed_when: true
+
+    - name: Template Tailscale serve config for the sidecar
+      ansible.builtin.template:
+        src: tailscale-serve.json.j2
+        dest: "{{ mcp_gateway_config_dir }}/tailscale-serve.json"
+        mode: "0644"
 
     - name: Template mcp-gateway stack file
       ansible.builtin.template:
@@ -90,42 +96,20 @@
       ansible.builtin.debug:
         msg: "{{ gateway_health.json }}"
 
-    - name: Expose gateway publicly with Tailscale Funnel
-      when: mcp_gateway_funnel | bool
-      block:
-        - name: Configure Funnel (https://{{ inventory_hostname }}.{{ tailscale_tailnet }} -> :{{ mcp_gateway_port }})
-          ansible.builtin.command:
-            cmd: tailscale funnel --bg --https=443 http://127.0.0.1:{{ mcp_gateway_port }}
-          register: funnel_on
-          changed_when: true
-      rescue:
-        - name: Explain Funnel failure
-          ansible.builtin.fail:
-            msg: |
-              tailscale funnel failed: {{ funnel_on.stderr | default(funnel_on.msg) }}
-
-              Funnel must be allowed for this node in the tailnet policy. In
-              https://login.tailscale.com/admin/dns turn on MagicDNS and HTTPS
-              Certificates, then in https://login.tailscale.com/admin/acls add:
-
-                "nodeAttrs": [{"target": ["{{ tailscale_ip | default(inventory_hostname) }}"], "attr": ["funnel"]}]
-
-              and re-run this playbook.
-
-    - name: Turn off Tailscale Funnel
-      when: not (mcp_gateway_funnel | bool)
+    # Earlier versions exposed the gateway through Funnel on the nuc-05 node
+    # itself. Make sure that public path is gone: nuc-05 must be tailnet-only.
+    - name: Turn off the host-level Tailscale Funnel
       ansible.builtin.command: tailscale funnel --https=443 off
       register: funnel_off
       failed_when: false
       changed_when: funnel_off.rc == 0
 
-    - name: Read Funnel status
-      ansible.builtin.command: tailscale funnel status
-      register: funnel_status
-      changed_when: false
-
     - name: Show connector URLs
       ansible.builtin.debug:
         msg: >-
-          {{ ['Funnel: '] + funnel_status.stdout_lines + ['', 'Add these as custom connectors in Claude:']
+          {{ ['Public (Funnel ' ~ ('on' if mcp_gateway_funnel | bool else 'off, tailnet only') ~ '): ' ~ mcp_gateway_public_url,
+              'The tailscale sidecar needs ~30s to join the tailnet. If the URL does not answer, check:',
+              '  docker service logs mcp-gateway_tailscale',
+              '(auth key tagged ' ~ mcp_gateway_tailscale_tag ~ ' and the `funnel` nodeAttr for that tag).',
+              '', 'Add these as custom connectors in Claude:']
              + (gateway_health.json.backends | map('regex_replace', '^(.*)$', mcp_gateway_public_url ~ '/\1/mcp') | list) }}

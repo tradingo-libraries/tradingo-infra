@@ -4,12 +4,18 @@
 # Run once before the first deploy, or to rotate credentials.
 #
 # 1. Create a GitHub OAuth App at https://github.com/settings/applications/new
-#      Homepage URL:               https://nuc-05.tailfe5b8d.ts.net
-#      Authorization callback URL: https://nuc-05.tailfe5b8d.ts.net/
+#      Homepage URL:               https://tradingo-mcps.tailfe5b8d.ts.net
+#      Authorization callback URL: https://tradingo-mcps.tailfe5b8d.ts.net/
 #    (the trailing-slash root lets every connector's /<name>/auth/callback match)
 #    Then "Generate a new client secret".
-# 2. ansible-playbook playbooks/setup-mcp-gateway.yml
-#    (prompts for the client ID and secret; the JWT signing key is generated)
+# 2. Create a Tailscale auth key at https://login.tailscale.com/admin/settings/keys:
+#    reusable, tag `tag:tradingo-mcps`. In the tailnet policy that tag needs
+#    tagOwners and the funnel attribute:
+#      "tagOwners": {"tag:tradingo-mcps": ["autogroup:admin"]},
+#      "nodeAttrs": [{"target": ["tag:tradingo-mcps"], "attr": ["funnel"]}]
+# 3. ansible-playbook playbooks/setup-mcp-gateway.yml
+#    (prompts for the client ID/secret and the Tailscale auth key; the JWT
+#    signing key is generated)
 #
 # Rotating the JWT key signs everyone out: Claude will ask you to reconnect.
 
@@ -22,6 +28,9 @@
       private: false
     - name: github_client_secret
       prompt: "GitHub OAuth app client secret"
+      private: true
+    - name: tailscale_authkey
+      prompt: "Tailscale auth key for tradingo-mcps (tskey-auth-..., tagged tag:tradingo-mcps)"
       private: true
     - name: rotate_jwt_key
       prompt: "Rotate the JWT signing key? (signs out all clients) [y/N]"
@@ -51,12 +60,12 @@
 
     - name: Check existing secrets
       ansible.builtin.command: "docker secret inspect {{ item }}"
-      loop: [mcp_gateway_github_client_id, mcp_gateway_github_client_secret, mcp_gateway_jwt_key]
+      loop: [mcp_gateway_github_client_id, mcp_gateway_github_client_secret, mcp_gateway_jwt_key, mcp_gateway_tailscale_authkey]
       register: existing
       failed_when: false
       changed_when: false
 
-    - name: Remove old GitHub secrets
+    - name: Remove old GitHub and Tailscale secrets
       ansible.builtin.command: "docker secret rm {{ item.item }}"
       loop: "{{ existing.results }}"
       loop_control:
@@ -65,12 +74,13 @@
         item.rc == 0 and (item.item != 'mcp_gateway_jwt_key' or rotate_jwt_key | lower == 'y')
       changed_when: true
 
-    - name: Create GitHub OAuth secrets
+    - name: Create GitHub OAuth and Tailscale secrets
       ansible.builtin.shell:
         cmd: "printf '%s' {{ item.value | quote }} | docker secret create {{ item.name }} -"
       loop:
         - {name: mcp_gateway_github_client_id, value: "{{ github_client_id }}"}
         - {name: mcp_gateway_github_client_secret, value: "{{ github_client_secret }}"}
+        - {name: mcp_gateway_tailscale_authkey, value: "{{ tailscale_authkey }}"}
       loop_control:
         label: "{{ item.name }}"
       changed_when: true

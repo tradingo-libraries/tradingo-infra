@@ -1,0 +1,28 @@
+---
+# roles/tailscale_services/defaults/main.yml
+#
+# Publishes the web UIs as Tailscale Services: https://<name>.<tailscale_tailnet>
+# on port 443, tailnet-only, TLS terminated by tailscaled (certs are issued by
+# Tailscale for the service's MagicDNS name). Service names are single labels:
+# MagicDNS does not support nested names like airflow.tradingo.<tailnet>.
+#
+# Runs on the manager. Every backend is a Swarm ingress port, so
+# 127.0.0.1:<port> on any swarm node reaches the service.
+
+tailscale_services_state: present
+
+# Tag the host node must carry (Services can only be hosted by tagged nodes).
+tailscale_services_host_tag: tag:tradingo-host
+
+# `tradingo` is the landing page; the rest match the cards on it.
+tailscale_services:
+  - { name: tradingo, port: 80 }
+  - { name: airflow, port: 8080 }
+  - { name: grafana, port: 3000 }
+  - { name: monitor, port: 8082 }
+  - { name: research, port: 8086 }
+  - { name: dtale, port: 40000 }
+  - { name: jupyter, port: 8083 }
+  - { name: flower, port: 5555 }
+  - { name: miniflux, port: 8084 }
+  - { name: minio, port: 9001 }
