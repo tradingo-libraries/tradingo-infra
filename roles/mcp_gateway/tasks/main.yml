@@ -98,8 +98,12 @@
 
     # Earlier versions exposed the gateway through Funnel on the nuc-05 node
     # itself. Make sure that public path is gone: nuc-05 must be tailnet-only.
+    # Best-effort: `tailscale funnel` can sit waiting on an interactive prompt
+    # (e.g. when Funnel isn't enabled for the node), so bound it and close stdin.
     - name: Turn off the host-level Tailscale Funnel
-      ansible.builtin.command: tailscale funnel --https=443 off
+      ansible.builtin.command:
+        cmd: timeout 15 tailscale funnel --https=443 off
+        stdin: ""
       register: funnel_off
       failed_when: false
       changed_when: funnel_off.rc == 0
