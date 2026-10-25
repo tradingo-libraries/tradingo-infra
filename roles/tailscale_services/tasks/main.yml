@@ -10,8 +10,9 @@
 #   "autoApprovers": {"services": {"svc:tradingo": ["tag:tradingo-host"], ...one per service...}},
 #   "grants":        [{"src": ["autogroup:member"], "dst": ["svc:tradingo", ...], "ip": ["tcp:443"]}]
 #
-# then tag the host: sudo tailscale up --advertise-tags=tag:tradingo-host
-# (or set the tag on the machine in the admin console).
+# then tag the host in the admin console (Machines > Edit ACL tags), or:
+#   sudo tailscale up --hostname=nuc-05 --accept-dns=false --advertise-tags=tag:tradingo-host
+# (`tailscale set` has no --advertise-tags; `up` needs the node's existing flags.)
 
 - name: Read Tailscale state
   ansible.builtin.command: tailscale status --json
@@ -23,9 +24,10 @@
     that: tailscale_services_host_tag in ((ts_state.stdout | from_json).Self.Tags | default([]))
     fail_msg: >-
       {{ inventory_hostname }} is not tagged {{ tailscale_services_host_tag }}. Tailscale
-      Services can only be hosted by tagged nodes: add the tag in tagOwners, then run
-      `sudo tailscale up --advertise-tags={{ tailscale_services_host_tag }}` (or set it in the
-      admin console). See the header of roles/tailscale_services/tasks/main.yml.
+      Services can only be hosted by tagged nodes: add the tag in tagOwners, then set it on the
+      machine in the admin console (Machines > Edit ACL tags), or run `tailscale up` with the
+      node's existing flags plus `--advertise-tags={{ tailscale_services_host_tag }}`.
+      See the header of roles/tailscale_services/tasks/main.yml.
     quiet: true
   when: tailscale_services_state == "present"
 
