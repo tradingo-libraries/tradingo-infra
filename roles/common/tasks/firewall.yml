@@ -6,6 +6,26 @@
     name: ufw
     state: present
 
+# ufw is the single owner of the host firewall. netfilter-persistent restores a
+# full-table snapshot (/etc/iptables/rules.v4) at boot in parallel with
+# ufw.service, so whichever finishes last wins. A stale snapshot silently drops
+# ufw rules added after it was taken (e.g. NFS from the LAN subnet).
+- name: Remove iptables-persistent (races ufw at boot)
+  ansible.builtin.apt:
+    name:
+      - iptables-persistent
+      - netfilter-persistent
+    state: absent
+    purge: true
+
+- name: Remove stale iptables snapshots
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/iptables/rules.v4
+    - /etc/iptables/rules.v6
+
 - name: Set UFW default deny incoming
   community.general.ufw:
     direction: incoming

@@ -15,26 +15,23 @@
         path: "{{ monitoring_config_dir }}"
         state: absent
 
-- name: Allow Prometheus container to scrape docker-engine on manager
-  when: monitoring_state == "present" and inventory_hostname in groups['managers']
-  ansible.builtin.iptables:
-    chain: INPUT
-    source: "{{ monitoring_overlay_subnet }}"
-    protocol: tcp
-    destination_port: "9323"
-    jump: ACCEPT
-    comment: "Allow Prometheus overlay network to scrape docker-engine"
-
-- name: Install iptables-persistent for rule persistence
+# ufw owns the host firewall and persists its own rules. Do not use
+# iptables-persistent here: its boot-time iptables-restore races ufw.service and
+# can overwrite ufw's rules with a stale snapshot (see roles/common/tasks/firewall.yml).
+- name: Install UFW (normally already present from the common role)
   when: monitoring_state == "present" and inventory_hostname in groups['managers']
   ansible.builtin.apt:
-    name: iptables-persistent
+    name: ufw
     state: present
 
-- name: Persist iptables rules
+- name: Allow Prometheus container to scrape docker-engine on manager
   when: monitoring_state == "present" and inventory_hostname in groups['managers']
-  ansible.builtin.shell: iptables-save > /etc/iptables/rules.v4
-  changed_when: false
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ monitoring_overlay_subnet }}"
+    port: "9323"
+    proto: tcp
+    comment: "Allow Prometheus overlay network to scrape docker-engine"
 
 - name: Deploy Docker Swarm update status script
   when: monitoring_state == "present" and inventory_hostname in groups['managers']
