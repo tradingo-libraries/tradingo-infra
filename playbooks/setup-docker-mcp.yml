@@ -1,13 +1,20 @@
 ---
 # playbooks/setup-docker-mcp.yml — Create the docker_mcp_access_token secret
 #
-# Run once before the first deploy, or to rotate the token.
+# Run once before the first deploy. Idempotent: if the secret already exists it
+# is left alone (so `make setup-mcps` is safe to re-run), unless you ask to
+# rotate it.
 #
 # Usage:
 #   ansible-playbook playbooks/setup-docker-mcp.yml
 #   ansible-playbook playbooks/setup-docker-mcp.yml -e docker_mcp_token=my-secure-token
+#   ansible-playbook playbooks/setup-docker-mcp.yml -e rotate_docker_mcp_token=y
 #
 # If docker_mcp_token is not passed, the playbook prompts interactively.
+#
+# Rotating: Docker secrets are immutable and can't be removed while a service
+# uses them, so rotation removes the stack(s) using the secret first. Redeploy
+# afterwards (make deploy-docker-mcp) to bring them back with the new token.
 
 - name: Create docker_mcp_access_token secret
   hosts: managers
@@ -17,38 +24,106 @@
       prompt: "Enter MCP access token (leave empty to auto-generate)"
       private: true
       default: ""
+    - name: rotate_docker_mcp_token
+      prompt: "Rotate the token if it already exists? (removes the stacks using it) [y/N]"
+      private: false
+      default: "n"
+
+  vars:
+    docker_mcp_secret_name: docker_mcp_access_token
 
   tasks:
     - name: Check if secret already exists
       ansible.builtin.command:
-        cmd: docker secret inspect docker_mcp_access_token
+        cmd: "docker secret inspect {{ docker_mcp_secret_name }}"
       register: secret_check
       failed_when: false
       changed_when: false
 
-    - name: Generate token if not provided
+    - name: Decide whether to create/rotate
       ansible.builtin.set_fact:
-        resolved_token: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
-      when: docker_mcp_token == ""
+        do_rotate: "{{ rotate_docker_mcp_token | string | lower in ['y', 'yes', 'true'] }}"
 
-    - name: Use provided token
-      ansible.builtin.set_fact:
-        resolved_token: "{{ docker_mcp_token }}"
-      when: docker_mcp_token != ""
-
-    - name: Remove existing secret (to allow rotation)
-      ansible.builtin.command:
-        cmd: docker secret rm docker_mcp_access_token
-      when: secret_check.rc == 0
-      changed_when: true
-
-    - name: Create docker_mcp_access_token secret
-      ansible.builtin.shell:
-        cmd: "printf '%s' {{ resolved_token | quote }} | docker secret create docker_mcp_access_token -"
-      changed_when: true
-      no_log: true
-
-    - name: Show token (save this now)
+    - name: Secret already exists, leaving it alone
       ansible.builtin.debug:
-        msg: "docker_mcp_access_token created. Token: {{ resolved_token }}"
-      when: docker_mcp_token == ""
+        msg: >-
+          {{ docker_mcp_secret_name }} already exists; nothing to do.
+          Re-run with -e rotate_docker_mcp_token=y to rotate it.
+      when: secret_check.rc == 0 and not do_rotate
+
+    - name: Create or rotate secret
+      when: secret_check.rc != 0 or do_rotate
+      block:
+        - name: Generate token if not provided
+          ansible.builtin.set_fact:
+            resolved_token: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
+          when: docker_mcp_token == ""
+
+        - name: Use provided token
+          ansible.builtin.set_fact:
+            resolved_token: "{{ docker_mcp_token }}"
+          when: docker_mcp_token != ""
+
+        - name: Find stacks using the secret
+          ansible.builtin.shell:
+            cmd: |
+              ids=$(docker service ls -q)
+              [ -z "$ids" ] && exit 0
+              docker service inspect $ids \
+                --format '{{ '{{' }}index .Spec.Labels "com.docker.stack.namespace"{{ '}}' }}|{{ '{{' }}range .Spec.TaskTemplate.ContainerSpec.Secrets{{ '}}' }}{{ '{{' }}.SecretName{{ '}}' }} {{ '{{' }}end{{ '}}' }}' \
+                | awk -F'|' '$2 ~ /(^| ){{ docker_mcp_secret_name }}( |$)/ {print $1}' | sort -u
+          register: secret_users
+          changed_when: false
+          check_mode: false
+          when: secret_check.rc == 0
+
+        - name: Refuse to rotate if a non-stack service uses the secret
+          ansible.builtin.assert:
+            that: "'' not in secret_users.stdout_lines"
+            fail_msg: >-
+              A service outside any stack uses {{ docker_mcp_secret_name }};
+              remove it manually, then re-run.
+          when: secret_check.rc == 0
+
+        # Secrets in use by a service can't be removed, so take the stack(s) down first.
+        - name: Remove stacks using the secret
+          ansible.builtin.command: "docker stack rm {{ item }}"
+          loop: "{{ secret_users.stdout_lines | default([]) }}"
+          changed_when: true
+
+        - name: Wait for those stacks' tasks to stop
+          ansible.builtin.command: "docker ps -q --filter label=com.docker.stack.namespace={{ item }}"
+          loop: "{{ secret_users.stdout_lines | default([]) }}"
+          register: running
+          until: running.stdout | length == 0
+          retries: 20
+          delay: 3
+          changed_when: false
+
+        - name: Remove existing secret
+          ansible.builtin.command:
+            cmd: "docker secret rm {{ docker_mcp_secret_name }}"
+          register: secret_rm
+          until: secret_rm.rc == 0
+          retries: 10
+          delay: 3
+          when: secret_check.rc == 0
+          changed_when: true
+
+        - name: Create docker_mcp_access_token secret
+          ansible.builtin.shell:
+            cmd: "printf '%s' {{ resolved_token | quote }} | docker secret create {{ docker_mcp_secret_name }} -"
+          changed_when: true
+          no_log: true
+
+        - name: Show token (save this now)
+          ansible.builtin.debug:
+            msg: "{{ docker_mcp_secret_name }} created. Token: {{ resolved_token }}"
+          when: docker_mcp_token == ""
+
+        - name: Remind to redeploy removed stacks
+          ansible.builtin.debug:
+            msg: >-
+              Removed stack(s) {{ secret_users.stdout_lines | join(', ') }} to rotate the token;
+              redeploy them (e.g. make deploy-docker-mcp).
+          when: secret_check.rc == 0 and (secret_users.stdout_lines | length) > 0
