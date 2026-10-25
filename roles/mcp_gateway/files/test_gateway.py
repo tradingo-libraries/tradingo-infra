@@ -201,6 +201,54 @@ def test_proxy_forwards_tools(backend_url):
         server.should_exit = True
 
 
+def test_proxy_does_not_forward_caller_authorization():
+    """The caller's gateway-issued token must never reach a backend.
+
+    Regression: fastmcp's proxy forwards Authorization upstream by default, and
+    airflow-mcp then sent the gateway's OAuth JWT to Airflow (403 "Invalid JWT
+    token"). A backend must only see the credential configured for it.
+    """
+    from fastmcp.server.dependencies import get_http_headers
+
+    mcp = FastMCP("whoami")
+
+    @mcp.tool
+    def seen_authorization() -> str:
+        return get_http_headers(include={"authorization"}).get("authorization", "<none>")
+
+    backend_port = _free_port()
+    backend_server = _serve(mcp.http_app(path="/mcp"), backend_port)
+    url = f"http://127.0.0.1:{backend_port}/mcp"
+
+    def run(backend: gateway.Backend) -> str:
+        port = _free_port()
+        cfg = gateway.Config(
+            public_url=PUBLIC,
+            backends=[backend],
+            allowed_users=frozenset({"rorymcstay"}),
+            github_client_id="id",
+            github_client_secret="secret",
+            jwt_key="x" * 32,
+        )
+        server = _serve(gateway.build_app(cfg, auth_factory=lambda c, b: None), port)
+        try:
+
+            async def go():
+                async with Client(f"http://127.0.0.1:{port}/{backend.name}/mcp", auth="gateway-oauth-jwt") as c:
+                    return (await c.call_tool("seen_authorization", {})).data
+
+            return asyncio.run(go())
+        finally:
+            server.should_exit = True
+
+    try:
+        assert run(gateway.Backend("airflow", url)) == "<none>"
+        configured = gateway.Backend("docker", url, headers={"Authorization": "Bearer backend-cred"})
+        assert run(configured) == "Bearer backend-cred"
+    finally:
+        backend_server.should_exit = True
+
+
 def test_parse_backends_reads_header_secrets(tmp_path):
     secret = tmp_path / "tok"
     secret.write_text("s3cret\n")

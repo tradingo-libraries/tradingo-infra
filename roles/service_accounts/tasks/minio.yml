@@ -24,14 +24,15 @@
     - name: Launch one-shot MinIO account provisioning service
       ansible.builtin.command:
         cmd: >
-          docker service create --name mc-provision-accounts
+          docker service create --detach --name mc-provision-accounts
           --restart-condition none
+          --entrypoint /bin/sh
           --network {{ minio_provision_network }}
           --secret minio_root_password
           {{ service_accounts | map(attribute='username') | map('regex_replace', '^(.*)$', '--secret svc_\1_password') | join(' ') }}
           --constraint node.role==manager
           {{ minio_provision_image }}
-          /bin/sh -c "ROOT_PW=$(cat /run/secrets/minio_root_password); until mc alias set local http://minio:9000 minioadmin \"$ROOT_PW\" >/dev/null 2>&1; do sleep 3; done; for U in {{ service_accounts | map(attribute='username') | join(' ') }}; do PW_FILE=/run/secrets/svc_${U}_password; [ -f \"$PW_FILE\" ] || continue; PW=$(cat \"$PW_FILE\"); mc admin user add local \"$U\" \"$PW\" || true; mc admin policy attach local {{ minio_policy }} --user \"$U\" || true; done; echo PROVISION_OK"
+          -c "ROOT_PW=$(cat /run/secrets/minio_root_password); until mc alias set local http://minio:9000 minioadmin \"$ROOT_PW\" >/dev/null 2>&1; do sleep 3; done; for U in {{ service_accounts | map(attribute='username') | join(' ') }}; do PW_FILE=/run/secrets/svc_${U}_password; [ -f \"$PW_FILE\" ] || continue; PW=$(cat \"$PW_FILE\"); mc admin user add local \"$U\" \"$PW\" || true; mc admin policy attach local {{ minio_policy }} --user \"$U\" || true; done; echo PROVISION_OK"
       changed_when: true
 
     - name: Wait for provisioning service task to reach a terminal state

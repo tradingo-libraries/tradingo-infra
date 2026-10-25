@@ -35,9 +35,9 @@ from pathlib import Path
 from typing import Any
 
 import uvicorn
-from fastmcp.client import Client
 from fastmcp.client.transports import StreamableHttpTransport
 from fastmcp.server import create_proxy
+from fastmcp.server.providers.proxy import ProxyClient
 from fastmcp.server.auth import AccessToken, AuthProvider, TokenVerifier
 from fastmcp.server.auth.providers.github import GitHubProvider
 from starlette.applications import Starlette
@@ -193,7 +193,15 @@ def build_app(cfg: Config, auth_factory: AuthFactory = github_auth) -> Starlette
     lifespans = []
     for backend in cfg.backends:
         auth = auth_factory(cfg, backend)
-        client = Client(StreamableHttpTransport(backend.url, headers=backend.headers))
+        # Never forward the caller's Authorization upstream: it's the gateway's
+        # own OAuth token, meaningless to a backend. fastmcp's proxy forwards it
+        # by default, and servers like airflow-mcp prefer a per-request token
+        # over their configured one -> Airflow 403 "Invalid JWT token". Backend
+        # credentials come only from backend.headers.
+        client = ProxyClient(
+            StreamableHttpTransport(backend.url, headers=backend.headers),
+            forward_incoming_headers=False,
+        )
         proxy = create_proxy(client, name=f"{backend.name} (via gateway)", auth=auth)
         app = proxy.http_app(path="/mcp")
         if auth is not None:
