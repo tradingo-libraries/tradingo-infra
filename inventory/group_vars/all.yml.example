@@ -138,6 +138,13 @@ nfs_shares:
   - name: research_runs
     owner_group: research
     mode: "2775"
+  - name: research_catalog
+    # Write-once paper originals (research-catalog BlobStore). Blocking beats EIO for these, so
+    # the host mount is `hard` (PLAN spike S6). The docker volume in tradingo-plat should use
+    # matching `hard,timeo=600` options.
+    owner_group: root
+    mode: "2775"
+    mount_opts: defaults,hard,timeo=600
   - name: miniflux_config
     owner_group: root
     mode: "2775"
