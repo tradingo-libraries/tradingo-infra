@@ -242,6 +242,8 @@ NFS shares are declared in `inventory/group_vars/all.yml` under `nfs_shares`. Ad
      owner_group: service   # or research / root as appropriate
      mode: "2775"
    ```
+   Host mounts default to `defaults,soft,timeo=30,retrans=3`; set `mount_opts:` on a share to override
+   (e.g. `defaults,hard,timeo=600` for `research_catalog`, where blocking is preferable to EIO on write-once data).
 2. Run `make setup-nfs` from the repo root — this creates the directory on nuc-01, sets ownership/permissions, and updates `/etc/exports`.
 3. Add the NFS volume definition to `tradingo-plat/docker-stack.yaml`:
    ```yaml
