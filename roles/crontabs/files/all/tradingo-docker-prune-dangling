@@ -1,0 +1,7 @@
+# /etc/cron.d/tradingo-docker-prune-dangling
+# Managed by Ansible — do not edit manually
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Remove dangling (untagged) Docker images daily; tagged/named images are kept
+30 4 * * *  root  docker image prune --force 2>&1 | logger -t docker-prune-dangling

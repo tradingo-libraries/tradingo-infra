@@ -1,0 +1,35 @@
+---
+# playbooks/prune-images.yml — Remove dangling (<none>:<none>) Docker images on all swarm nodes
+#
+# Only untagged, unreferenced images are removed (`docker image prune -f`,
+# no `-a`). Tagged/named images, containers, volumes and networks are untouched.
+#
+# Usage:
+#   ansible-playbook playbooks/prune-images.yml
+#   ansible-playbook playbooks/prune-images.yml --limit nuc-02
+#   ansible-playbook playbooks/prune-images.yml --check      # list dangling images only
+
+- name: Prune dangling Docker images
+  hosts: swarm
+  become: true
+  tasks:
+    - name: List dangling images
+      ansible.builtin.command: docker images --filter dangling=true --format '{{ '{{.ID}}  {{.CreatedSince}}  {{.Size}}' }}'
+      register: dangling
+      changed_when: false
+      check_mode: false
+
+    - name: Show dangling images
+      ansible.builtin.debug:
+        msg: "{{ dangling.stdout_lines | default([]) or ['none'] }}"
+
+    - name: Prune dangling images
+      ansible.builtin.command: docker image prune --force
+      register: prune
+      changed_when: dangling.stdout_lines | length > 0
+      when: dangling.stdout_lines | length > 0
+
+    - name: Show reclaimed space
+      ansible.builtin.debug:
+        msg: "{{ prune.stdout_lines | last }}"
+      when: prune is not skipped
