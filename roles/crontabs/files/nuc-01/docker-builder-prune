@@ -1,0 +1,7 @@
+# /etc/cron.d/docker-builder-prune
+# Managed by Ansible — do not edit manually
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# nuc-01 is the buildx host: drop build cache not used in the last 7 days
+45 4 * * *  root  docker builder prune --force --filter until=168h 2>&1 | logger -t docker-builder-prune

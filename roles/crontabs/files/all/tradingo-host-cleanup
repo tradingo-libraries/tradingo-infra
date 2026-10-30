@@ -1,0 +1,8 @@
+# /etc/cron.d/tradingo-host-cleanup
+# Managed by Ansible — do not edit manually
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Weekly host-level cleanup (not Docker): journal older than 14 days, apt package cache
+0 5 * * 0  root  journalctl --vacuum-time=14d 2>&1 | logger -t host-cleanup
+5 5 * * 0  root  apt-get clean 2>&1 | logger -t host-cleanup
