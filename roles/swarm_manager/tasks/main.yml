@@ -77,8 +77,7 @@
     docker service create
     --name registry
     --network backend
-    --publish mode=host,published=5000,target=5000
-    --publish published={{ registry_ingress_port }},target=5000
+    --publish published=5000,target=5000
     --env REGISTRY_HTTP_RELATIVEURLS=true
     --env REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR=inmemory
     --mount type=volume,source=registry-data,target=/var/lib/registry
@@ -90,11 +89,11 @@
   when: registry_inspect.rc != 0 or registry_config.changed
   changed_when: true
 
-# Tailscale serve on the manager proxies https://registry.<tailnet> to the ingress
-# port (127.0.0.1:{{ registry_ingress_port }}), since the host-mode :5000 only exists on nuc-01.
-# Relative URLs keep upload Location headers valid behind TLS termination; the
-# descriptor cache is set by env because /etc/docker/registry/config.yml on nuc-01
-# is not managed by this role.
+# Published in ingress mode (routing mesh) so nuc-05's `tailscale serve` can proxy
+# https://registry.<tailnet> to 127.0.0.1:5000; 192.168.0.50:5000 still works from
+# every node. Relative URLs keep upload Location headers valid behind TLS
+# termination; the descriptor cache is set by env because
+# /etc/docker/registry/config.yml on nuc-01 is not managed by this role.
 - name: Inspect registry service spec
   ansible.builtin.command: docker service inspect registry --format '{% raw %}{{json .Spec}}{% endraw %}'
   register: registry_spec
@@ -109,12 +108,14 @@
   when: "'REGISTRY_HTTP_RELATIVEURLS=true' not in registry_spec.stdout"
   changed_when: true
 
-- name: Publish registry on the ingress port
+- name: Move registry port 5000 from host mode to ingress (existing service)
   ansible.builtin.command: >
     docker service update
-    --publish-add published={{ registry_ingress_port }},target=5000
+    --publish-rm 5000
+    --publish-add published=5000,target=5000
     registry
-  when: "('\"PublishedPort\":' ~ registry_ingress_port) not in registry_spec.stdout"
+  when: >-
+    '"PublishMode":"host"' in registry_spec.stdout
   changed_when: true
 
 # --- Docker Registry Frontend ---
