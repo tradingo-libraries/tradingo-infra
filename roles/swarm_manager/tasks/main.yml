@@ -96,14 +96,14 @@
 # `backend` overlay: a container can't reach the host's own published port by LAN
 # IP, so the UI proxies to the registry by service name instead.
 - name: Inspect registry-frontend service image
-  ansible.builtin.command: docker service inspect registry-frontend --format '{% raw %}{{.Spec.TaskTemplate.ContainerSpec.Image}}{% endraw %}'
+  ansible.builtin.command: docker service inspect registry-frontend --format '{% raw %}{{.Spec.TaskTemplate.ContainerSpec.Image}} {{join .Spec.TaskTemplate.ContainerSpec.Env " "}}{% endraw %}'
   register: registry_frontend_inspect
   changed_when: false
   failed_when: false
 
-- name: Remove registry-frontend service (image changed)
+- name: Remove registry-frontend service (image or env changed)
   ansible.builtin.command: docker service rm registry-frontend
-  when: registry_frontend_inspect.rc == 0 and registry_frontend_image not in registry_frontend_inspect.stdout
+  when: registry_frontend_inspect.rc == 0 and not (registry_frontend_image in registry_frontend_inspect.stdout and registry_frontend_proxy in registry_frontend_inspect.stdout)
   changed_when: true
 
 - name: Create registry-frontend service
@@ -116,12 +116,12 @@
     --env REGISTRY_TITLE=Tradingo
     --env DELETE_IMAGES=true
     --env SHOW_CONTENT_DIGEST=true
-    --env NGINX_PROXY_PASS_URL=http://registry:{{ registry_host.split(':')[1] }}
+    --env NGINX_PROXY_PASS_URL={{ registry_frontend_proxy }}
     --constraint 'node.hostname == nuc-01'
     --limit-memory 128M
     --restart-condition on-failure
     {{ registry_frontend_image }}
-  when: registry_frontend_inspect.rc != 0 or registry_frontend_image not in registry_frontend_inspect.stdout
+  when: registry_frontend_inspect.rc != 0 or not (registry_frontend_image in registry_frontend_inspect.stdout and registry_frontend_proxy in registry_frontend_inspect.stdout)
   changed_when: true
 
 - name: Check registry services' networks

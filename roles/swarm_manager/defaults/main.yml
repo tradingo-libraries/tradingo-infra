@@ -1,3 +1,4 @@
 ---
 registry_host: "192.168.0.50:5000"
 registry_frontend_image: "joxit/docker-registry-ui:2.5.7"
+registry_frontend_proxy: "http://registry:5000"
