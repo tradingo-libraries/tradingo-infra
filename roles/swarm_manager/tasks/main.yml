@@ -88,24 +88,36 @@
 
 # --- Docker Registry Frontend ---
 
-- name: Check if registry-frontend service exists
-  ansible.builtin.command: docker service inspect registry-frontend
+# joxit/docker-registry-ui in nginx proxy mode: the browser only talks to the UI,
+# which proxies /v2 to the registry, so the registry needs no CORS headers. (The
+# old konradkleine/docker-registry-frontend called the registry from the browser,
+# was unmaintained, and listed nothing without CORS.)
+- name: Inspect registry-frontend service image
+  ansible.builtin.command: docker service inspect registry-frontend --format '{% raw %}{{.Spec.TaskTemplate.ContainerSpec.Image}}{% endraw %}'
   register: registry_frontend_inspect
   changed_when: false
   failed_when: false
+
+- name: Remove registry-frontend service (image changed)
+  ansible.builtin.command: docker service rm registry-frontend
+  when: registry_frontend_inspect.rc == 0 and registry_frontend_image not in registry_frontend_inspect.stdout
+  changed_when: true
 
 - name: Create registry-frontend service
   ansible.builtin.command: >
     docker service create
     --name registry-frontend
     --publish mode=host,published=5080,target=80
-    --env ENV_DOCKER_REGISTRY_HOST={{ registry_host.split(':')[0] }}
-    --env ENV_DOCKER_REGISTRY_PORT={{ registry_host.split(':')[1] }}
+    --env SINGLE_REGISTRY=true
+    --env REGISTRY_TITLE=Tradingo
+    --env DELETE_IMAGES=true
+    --env SHOW_CONTENT_DIGEST=true
+    --env NGINX_PROXY_PASS_URL=http://{{ registry_host }}
     --constraint 'node.hostname == nuc-01'
     --limit-memory 128M
     --restart-condition on-failure
-    konradkleine/docker-registry-frontend:v2
-  when: registry_frontend_inspect.rc != 0
+    {{ registry_frontend_image }}
+  when: registry_frontend_inspect.rc != 0 or registry_frontend_image not in registry_frontend_inspect.stdout
   changed_when: true
 
 # --- regctl (registry CLI) and pruning script ---
