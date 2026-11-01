@@ -78,6 +78,9 @@
     --name registry
     --network backend
     --publish mode=host,published=5000,target=5000
+    --publish published={{ registry_ingress_port }},target=5000
+    --env REGISTRY_HTTP_RELATIVEURLS=true
+    --env REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR=inmemory
     --mount type=volume,source=registry-data,target=/var/lib/registry
     --mount type=bind,source=/etc/docker/registry/config.yml,target=/etc/docker/registry/config.yml,readonly
     --constraint 'node.hostname == nuc-01'
@@ -85,6 +88,33 @@
     --restart-condition on-failure
     registry:2
   when: registry_inspect.rc != 0 or registry_config.changed
+  changed_when: true
+
+# Tailscale serve on the manager proxies https://registry.<tailnet> to the ingress
+# port (127.0.0.1:{{ registry_ingress_port }}), since the host-mode :5000 only exists on nuc-01.
+# Relative URLs keep upload Location headers valid behind TLS termination; the
+# descriptor cache is set by env because /etc/docker/registry/config.yml on nuc-01
+# is not managed by this role.
+- name: Inspect registry service spec
+  ansible.builtin.command: docker service inspect registry --format '{% raw %}{{json .Spec}}{% endraw %}'
+  register: registry_spec
+  changed_when: false
+
+- name: Add registry env (relative URLs, descriptor cache)
+  ansible.builtin.command: >
+    docker service update
+    --env-add REGISTRY_HTTP_RELATIVEURLS=true
+    --env-add REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR=inmemory
+    registry
+  when: "'REGISTRY_HTTP_RELATIVEURLS=true' not in registry_spec.stdout"
+  changed_when: true
+
+- name: Publish registry on the ingress port
+  ansible.builtin.command: >
+    docker service update
+    --publish-add published={{ registry_ingress_port }},target=5000
+    registry
+  when: "('\"PublishedPort\":' ~ registry_ingress_port) not in registry_spec.stdout"
   changed_when: true
 
 # --- Docker Registry Frontend ---
@@ -103,7 +133,7 @@
 
 - name: Remove registry-frontend service (image or env changed)
   ansible.builtin.command: docker service rm registry-frontend
-  when: registry_frontend_inspect.rc == 0 and not (registry_frontend_image in registry_frontend_inspect.stdout and registry_frontend_proxy in registry_frontend_inspect.stdout)
+  when: registry_frontend_inspect.rc == 0 and (registry_frontend_desired | reject('in', registry_frontend_inspect.stdout) | list | length > 0)
   changed_when: true
 
 - name: Create registry-frontend service
@@ -111,7 +141,7 @@
     docker service create
     --name registry-frontend
     --network backend
-    --publish mode=host,published=5080,target=80
+    --publish published=5080,target=80
     --env SINGLE_REGISTRY=true
     --env REGISTRY_TITLE=Tradingo
     --env DELETE_IMAGES=true
@@ -121,7 +151,7 @@
     --limit-memory 128M
     --restart-condition on-failure
     {{ registry_frontend_image }}
-  when: registry_frontend_inspect.rc != 0 or not (registry_frontend_image in registry_frontend_inspect.stdout and registry_frontend_proxy in registry_frontend_inspect.stdout)
+  when: registry_frontend_inspect.rc != 0 or (registry_frontend_desired | reject('in', registry_frontend_inspect.stdout) | list | length > 0)
   changed_when: true
 
 - name: Check registry services' networks
