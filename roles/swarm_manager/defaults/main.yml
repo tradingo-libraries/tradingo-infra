@@ -7,3 +7,4 @@ registry_frontend_desired:
   - "{{ registry_frontend_image }}"
   - "NGINX_PROXY_PASS_URL={{ registry_frontend_proxy }}"
   - ingress
+registry_ingress_port: 5001

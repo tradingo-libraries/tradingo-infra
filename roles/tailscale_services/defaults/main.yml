@@ -26,5 +26,5 @@ tailscale_services:
   - { name: flower, port: 5555 }
   - { name: miniflux, port: 8084 }
   - { name: minio, port: 9001 }
-  - { name: registry, port: 5000 } # Docker registry API: docker push/pull registry.<tailnet>
+  - { name: registry, port: 5001 } # Docker registry API: docker push/pull registry.<tailnet>
   - { name: registry-ui, port: 5080 }
