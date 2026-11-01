@@ -19,6 +19,40 @@
   no_log: true
   run_once: true
 
+- name: Work out which accounts to rotate
+  ansible.builtin.set_fact:
+    _rotate_users: >-
+      {{ (service_accounts_rotate.split(',') if service_accounts_rotate is string else service_accounts_rotate)
+         | map('trim') | reject('equalto', '') | list }}
+
+- name: Rotation preflight
+  when: _rotate_users | length > 0
+  block:
+    - name: Rotation needs real runs and every backend, and only known accounts
+      ansible.builtin.assert:
+        that:
+          - not ansible_check_mode
+          - _rotate_users | difference(service_accounts | map(attribute='username') | list) | length == 0
+          - service_accounts_all_targets | difference(service_accounts_targets) | length == 0
+        fail_msg: >-
+          Rotation cannot run with --check, must name accounts from service_accounts
+          ({{ service_accounts | map(attribute='username') | join(', ') }}), and must cover every
+          backend ({{ service_accounts_all_targets | join(', ') }}) — a partial rotation leaves
+          the skipped service on the old password.
+
+    - name: Generate/reuse the NEW passwords (<user>.pass.new — reused if a previous run died midway)
+      ansible.builtin.set_fact:
+        service_account_passwords: "{{ service_account_passwords | combine({item: lookup('ansible.builtin.password', credentials_dir + '/' + item + '.pass.new chars=ascii_letters,digits length=32')}) }}"
+      loop: "{{ _rotate_users }}"
+      no_log: true
+      run_once: true
+
+    - name: Stage new passwords as svc_<username>_password_next secrets
+      ansible.builtin.include_tasks: rotate_prepare.yml
+      loop: "{{ _rotate_users }}"
+      loop_control:
+        loop_var: rotate_user
+
 - name: Ensure svc_<username>_password Docker secrets exist (create-if-missing, never rotates)
   ansible.builtin.include_tasks: secret.yml
   loop: "{{ service_accounts }}"
@@ -41,3 +75,12 @@
 - name: Provision MinIO accounts
   ansible.builtin.include_tasks: minio.yml
   when: "'minio' in service_accounts_targets"
+
+# Last: only now that every backend accepts the new password do we roll the Swarm secret
+# and commit <user>.pass. If anything above failed, <user>.pass.new is kept so a re-run
+# resumes with the same password.
+- name: Roll Swarm secrets and commit new passwords
+  ansible.builtin.include_tasks: rotate_finish.yml
+  loop: "{{ _rotate_users }}"
+  loop_control:
+    loop_var: rotate_user

@@ -38,6 +38,43 @@
   no_log: true
   changed_when: true
 
+# --- Rotation: set the new password on existing rotated accounts, then prove it logs in ---
+
+- name: "Reset Grafana account password (rotation)"
+  ansible.builtin.uri:
+    url: "http://localhost:3000/api/admin/users/{{ item.json.id }}/password"
+    method: PUT
+    url_username: admin
+    url_password: "{{ grafana_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      password: "{{ service_account_passwords[item.item.username] }}"
+    status_code: [200]
+  loop: "{{ _grafana_user_check.results }}"
+  loop_control:
+    label: "{{ item.item.username }}"
+  when:
+    - item.item.username in _rotate_users
+    - item.status == 200
+  no_log: true
+  changed_when: true
+
+- name: "Verify new Grafana password works (GET /api/user)"
+  ansible.builtin.uri:
+    url: "http://localhost:3000/api/user"
+    url_username: "{{ item }}"
+    url_password: "{{ service_account_passwords[item] }}"
+    force_basic_auth: true
+    status_code: [200]
+  loop: "{{ _rotate_users }}"
+  register: _grafana_verify
+  until: _grafana_verify.status == 200
+  retries: 5
+  delay: 3
+  no_log: true
+  changed_when: false
+
 # --- Viewer service account + token for the tradingo `homepage` service ---
 # The token lands straight in the grafana_homepage_token Docker secret (read by
 # tradingo-plat/scripts/homepage). Create-if-missing: a secret in use by a

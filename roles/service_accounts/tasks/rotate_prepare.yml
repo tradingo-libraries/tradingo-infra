@@ -1,0 +1,17 @@
+---
+# roles/service_accounts/tasks/rotate_prepare.yml  (loop var: rotate_user)
+# Puts the NEW password in svc_<user>_password_next so the MinIO one-shot (which can only
+# read Swarm secrets) provisions the new value while the real secret still holds the old one.
+
+- name: "Drop any stale svc_{{ rotate_user }}_password_next"
+  ansible.builtin.command:
+    cmd: "docker secret rm svc_{{ rotate_user }}_password_next"
+  register: _next_rm
+  failed_when: false
+  changed_when: _next_rm.rc == 0
+
+- name: "Create svc_{{ rotate_user }}_password_next"
+  ansible.builtin.shell:
+    cmd: "printf '%s' {{ service_account_passwords[rotate_user] | quote }} | docker secret create svc_{{ rotate_user }}_password_next -"
+  no_log: true
+  changed_when: true

@@ -62,3 +62,40 @@
   when: item.status == 404
   no_log: true
   changed_when: true
+
+# --- Rotation: set the new password on existing rotated accounts, then prove it logs in ---
+
+- name: "Reset Miniflux account password (rotation)"
+  ansible.builtin.uri:
+    url: "{{ miniflux_base_url | regex_replace('miniflux:8080', 'localhost:8084') }}/v1/users/{{ item.json.id }}"
+    method: PUT
+    url_username: admin
+    url_password: "{{ _mf_admin_pw.stdout }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      password: "{{ service_account_passwords[item.item.username] }}"
+    status_code: [200, 201]
+  loop: "{{ _mf_user_check.results }}"
+  loop_control:
+    label: "{{ item.item.username }}"
+  when:
+    - item.item.username in _rotate_users
+    - item.status == 200
+  no_log: true
+  changed_when: true
+
+- name: "Verify new Miniflux password works (GET /v1/me)"
+  ansible.builtin.uri:
+    url: "{{ miniflux_base_url | regex_replace('miniflux:8080', 'localhost:8084') }}/v1/me"
+    url_username: "{{ item }}"
+    url_password: "{{ service_account_passwords[item] }}"
+    force_basic_auth: true
+    status_code: [200]
+  loop: "{{ _rotate_users }}"
+  register: _mf_verify
+  until: _mf_verify.status == 200
+  retries: 5
+  delay: 3
+  no_log: true
+  changed_when: false

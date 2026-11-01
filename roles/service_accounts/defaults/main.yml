@@ -27,6 +27,19 @@ service_accounts_targets:
   - miniflux
   - minio
 
+# Every backend a rotation must cover. A rotation that skipped one would leave that
+# login on the old password, so rotating asserts service_accounts_targets includes all.
+service_accounts_all_targets:
+  - airflow
+  - grafana
+  - miniflux
+  - minio
+
+# Accounts to rotate this run (list, or comma-separated string from the CLI):
+#   ansible-playbook playbooks/deploy-service-accounts.yml -e service_accounts_rotate=rory
+# Empty (default) = normal create-if-missing provisioning. See tasks/rotate_*.yml.
+service_accounts_rotate: []
+
 minio_provision_image: "192.168.0.50:5000/minio/mc:latest"
 minio_provision_network: "tradingo_tradingo-backend"
 minio_policy: "readwrite"

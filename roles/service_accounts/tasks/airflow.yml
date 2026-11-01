@@ -43,3 +43,35 @@
   when: item.username not in _af_users.stdout
   no_log: true
   changed_when: true
+
+# --- Rotation: reset the password of existing rotated accounts, then prove the new one logs in ---
+# (accounts that didn't exist were just created above with the new password)
+
+- name: "Reset Airflow account password (rotation)"
+  ansible.builtin.command:
+    cmd: "docker exec {{ _af_cid }} airflow users reset-password --username {{ item.username }} --password {{ service_account_passwords[item.username] }}"
+  loop: "{{ service_accounts }}"
+  loop_control:
+    label: "{{ item.username }}"
+  when:
+    - item.username in _rotate_users
+    - item.username in _af_users.stdout
+  no_log: true
+  changed_when: true
+
+- name: "Verify new Airflow password works (POST /auth/token)"
+  ansible.builtin.uri:
+    url: "http://localhost:8080/auth/token"
+    method: POST
+    body_format: json
+    body:
+      username: "{{ item }}"
+      password: "{{ service_account_passwords[item] }}"
+    status_code: [200, 201]
+  loop: "{{ _rotate_users }}"
+  register: _af_verify
+  until: _af_verify.status in [200, 201]
+  retries: 5
+  delay: 3
+  no_log: true
+  changed_when: false

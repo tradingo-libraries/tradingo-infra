@@ -1,0 +1,81 @@
+---
+# roles/service_accounts/tasks/rotate_finish.yml  (loop var: rotate_user)
+# Replaces the Swarm secret svc_<user>_password with the new value, then commits
+# <user>.pass.new -> <user>.pass on the controller.
+#
+# A secret in use can't be removed or edited, so services that mount it are moved onto
+# svc_<user>_password_next (same target path, same uid/gid/mode) in a single rolling
+# update, the real secret is recreated, and they are moved back. At no point does a
+# service run without the secret — the same swap Docker documents for secret rotation.
+
+- name: "Find services mounting svc_{{ rotate_user }}_password"
+  ansible.builtin.shell:
+    cmd: |
+      for svc in $(docker service ls --format '{% raw %}{{.Name}}{% endraw %}'); do
+        ref=$(docker service inspect "$svc" --format '{% raw %}{{range .Spec.TaskTemplate.ContainerSpec.Secrets}}{{if eq .SecretName "svc_{% endraw %}{{ rotate_user }}{% raw %}_password"}}{{.File.Name}} {{.File.UID}} {{.File.GID}} {{printf "%o" .File.Mode}}{{end}}{{end}}{% endraw %}')
+        [ -n "$ref" ] && echo "$svc $ref"
+      done
+      exit 0
+  register: _mounts_raw
+  changed_when: false
+  run_once: true
+
+- name: Parse mounts
+  ansible.builtin.set_fact:
+    _mounts: >-
+      {{ _mounts_raw.stdout_lines | map('split', ' ') | list }}
+  run_once: true
+
+- name: "Move mounting services onto svc_{{ rotate_user }}_password_next (same target)"
+  ansible.builtin.command:
+    cmd: >-
+      docker service update --quiet
+      --secret-rm svc_{{ rotate_user }}_password
+      --secret-add source=svc_{{ rotate_user }}_password_next,target={{ item[1] }},uid={{ item[2] }},gid={{ item[3] }},mode=0{{ item[4] }}
+      {{ item[0] }}
+  loop: "{{ _mounts }}"
+  loop_control:
+    label: "{{ item[0] }}"
+  run_once: true
+  changed_when: true
+
+- name: "Replace secret svc_{{ rotate_user }}_password"
+  run_once: true
+  block:
+    - name: Remove the old secret
+      ansible.builtin.command:
+        cmd: "docker secret rm svc_{{ rotate_user }}_password"
+      changed_when: true
+
+    - name: Create it with the new value
+      ansible.builtin.shell:
+        cmd: "printf '%s' {{ service_account_passwords[rotate_user] | quote }} | docker secret create svc_{{ rotate_user }}_password -"
+      no_log: true
+      changed_when: true
+
+- name: "Move services back onto svc_{{ rotate_user }}_password"
+  ansible.builtin.command:
+    cmd: >-
+      docker service update --quiet
+      --secret-rm svc_{{ rotate_user }}_password_next
+      --secret-add source=svc_{{ rotate_user }}_password,target={{ item[1] }},uid={{ item[2] }},gid={{ item[3] }},mode=0{{ item[4] }}
+      {{ item[0] }}
+  loop: "{{ _mounts }}"
+  loop_control:
+    label: "{{ item[0] }}"
+  run_once: true
+  changed_when: true
+
+- name: "Remove svc_{{ rotate_user }}_password_next"
+  ansible.builtin.command:
+    cmd: "docker secret rm svc_{{ rotate_user }}_password_next"
+  run_once: true
+  changed_when: true
+
+- name: "Commit {{ rotate_user }}.pass.new as {{ rotate_user }}.pass"
+  ansible.builtin.command:
+    cmd: "mv {{ credentials_dir }}/{{ rotate_user }}.pass.new {{ credentials_dir }}/{{ rotate_user }}.pass"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  changed_when: true

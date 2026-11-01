@@ -281,3 +281,15 @@ Labels are applied by `swarm_manager` and `swarm_worker` roles from `inventory/h
 | `Makefile` | Convenience targets wrapping `ansible-playbook` |
 | `tradingo-plat/docker-stack.yaml` | Full tradingo application stack definition |
 | `roles/monitoring/templates/monitoring-stack.yml.j2` | Monitoring stack definition |
+
+## Service accounts (`tradingo`, `rory`)
+
+`make deploy-service-accounts` provisions both across Airflow, Grafana, Miniflux and MinIO. Passwords are
+generated once into `.credentials/<user>.pass` (gitignored, controller only) and mirrored to the Swarm secret
+`svc_<user>_password` (create-if-missing). To rotate: `make rotate-service-account ACCOUNT=rory` (comma-separate
+for several). It sets the new password in every backend, checks a real login against each, then swaps the Swarm
+secret with no gap for services that mount it, and only then commits `<user>.pass.new` over `<user>.pass`.
+It never runs against a subset of backends. If it dies midway, re-run: `<user>.pass.new` is reused so the
+password stays the same. Don't rotate `svc_*_password` with `rotate-secrets.sh` — that leaves the backends on the
+old password.
+

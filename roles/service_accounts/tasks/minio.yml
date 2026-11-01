@@ -21,18 +21,57 @@
       failed_when: false
       changed_when: _mc_rm.rc == 0
 
+    # Rotated accounts mount svc_<u>_password_next *as* svc_<u>_password, so the script below
+    # sees the new value while the real Swarm secret still holds the old one (it is rolled
+    # last, in rotate_finish.yml). Passed as argv so no shell quoting is involved.
+    - name: Build one-shot service secret arguments
+      ansible.builtin.set_fact:
+        _mc_secret_args: |-
+          {%- set out = ['--secret', 'minio_root_password'] -%}
+          {%- for u in service_accounts | map(attribute='username') -%}
+          {%- if u in _rotate_users -%}
+          {%- set _ = out.extend(['--secret', 'source=svc_' ~ u ~ '_password_next,target=svc_' ~ u ~ '_password']) -%}
+          {%- else -%}
+          {%- set _ = out.extend(['--secret', 'svc_' ~ u ~ '_password']) -%}
+          {%- endif -%}
+          {%- endfor -%}
+          {{ out | to_json }}
+
     - name: Launch one-shot MinIO account provisioning service
+      vars:
+        _mc_script: |
+          ROOT_PW=$(cat /run/secrets/minio_root_password)
+          until mc alias set local http://minio:9000 minioadmin "$ROOT_PW" >/dev/null 2>&1; do sleep 3; done
+          for U in {{ service_accounts | map(attribute='username') | join(' ') }}; do
+            PW_FILE=/run/secrets/svc_${U}_password
+            [ -f "$PW_FILE" ] || continue
+            PW=$(cat "$PW_FILE")
+            mc admin user add local "$U" "$PW" || true
+            mc admin policy attach local {{ minio_policy }} --user "$U" || true
+          done
+          {% if _rotate_users | length > 0 %}
+          # Rotated accounts: no skipping, no ignored errors — set the password, then log in with it.
+          for U in {{ _rotate_users | join(' ') }}; do
+            PW_FILE=/run/secrets/svc_${U}_password
+            [ -f "$PW_FILE" ] || { echo "ROTATE_FAIL: no secret for $U" >&2; exit 1; }
+            PW=$(cat "$PW_FILE")
+            mc admin user add local "$U" "$PW" || { echo "ROTATE_FAIL: user add $U" >&2; exit 1; }
+            ok=0
+            for i in 1 2 3 4 5; do
+              if mc alias set chk http://minio:9000 "$U" "$PW" >/dev/null 2>&1; then ok=1; break; fi
+              sleep 2
+            done
+            [ "$ok" = 1 ] || { echo "ROTATE_FAIL: $U cannot log in with new password" >&2; exit 1; }
+          done
+          {% endif %}
+          echo PROVISION_OK
       ansible.builtin.command:
-        cmd: >
-          docker service create --detach --name mc-provision-accounts
-          --restart-condition none
-          --entrypoint /bin/sh
-          --network {{ minio_provision_network }}
-          --secret minio_root_password
-          {{ service_accounts | map(attribute='username') | map('regex_replace', '^(.*)$', '--secret svc_\1_password') | join(' ') }}
-          --constraint node.role==manager
-          {{ minio_provision_image }}
-          -c "ROOT_PW=$(cat /run/secrets/minio_root_password); until mc alias set local http://minio:9000 minioadmin \"$ROOT_PW\" >/dev/null 2>&1; do sleep 3; done; for U in {{ service_accounts | map(attribute='username') | join(' ') }}; do PW_FILE=/run/secrets/svc_${U}_password; [ -f \"$PW_FILE\" ] || continue; PW=$(cat \"$PW_FILE\"); mc admin user add local \"$U\" \"$PW\" || true; mc admin policy attach local {{ minio_policy }} --user \"$U\" || true; done; echo PROVISION_OK"
+        argv: >-
+          {{ ['docker', 'service', 'create', '--detach', '--name', 'mc-provision-accounts',
+              '--restart-condition', 'none', '--entrypoint', '/bin/sh',
+              '--network', minio_provision_network]
+             + (_mc_secret_args | from_json)
+             + ['--constraint', 'node.role==manager', minio_provision_image, '-c', _mc_script] }}
       changed_when: true
 
     - name: Wait for provisioning service task to reach a terminal state
