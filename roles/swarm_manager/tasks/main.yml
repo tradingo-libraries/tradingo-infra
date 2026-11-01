@@ -62,14 +62,25 @@
   register: registry_config
 
 - name: Check if registry service exists
-  ansible.builtin.command: docker service inspect registry
+  ansible.builtin.command: docker service inspect registry --format '{% raw %}{{json .Spec.EndpointSpec.Ports}}{% endraw %}'
   register: registry_inspect
   changed_when: false
   failed_when: false
 
-- name: Remove registry service (config changed)
+# Also recreated when the published ports differ: `service update` can't switch a
+# port's mode (--publish-rm doesn't match it, re-adding it is a duplicate).
+- name: Work out whether the registry's published ports are as desired
+  ansible.builtin.set_fact:
+    registry_ports_differ: >-
+      {{ registry_inspect.rc == 0 and
+         ('"PublishMode":"host"' not in registry_inspect.stdout or
+          ('"PublishedPort":' ~ registry_ingress_port) not in registry_inspect.stdout) }}
+
+- name: Remove registry service (config changed or ports differ)
   ansible.builtin.command: docker service rm registry
-  when: registry_inspect.rc == 0 and registry_config.changed
+  when: >-
+    registry_inspect.rc == 0 and
+    (registry_config.changed or registry_ports_differ)
   changed_when: true
 
 - name: Create registry service
@@ -77,7 +88,8 @@
     docker service create
     --name registry
     --network backend
-    --publish published=5000,target=5000
+    --publish mode=host,published=5000,target=5000
+    --publish published={{ registry_ingress_port }},target=5000
     --env REGISTRY_HTTP_RELATIVEURLS=true
     --env REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR=inmemory
     --mount type=volume,source=registry-data,target=/var/lib/registry
@@ -86,12 +98,13 @@
     --limit-memory 512M
     --restart-condition on-failure
     registry:2
-  when: registry_inspect.rc != 0 or registry_config.changed
+  when: registry_inspect.rc != 0 or registry_config.changed or registry_ports_differ
   changed_when: true
 
-# Published in ingress mode (routing mesh) so nuc-05's `tailscale serve` can proxy
-# https://registry.<tailnet> to 127.0.0.1:5000; 192.168.0.50:5000 still works from
-# every node. Relative URLs keep upload Location headers valid behind TLS
+# :5000 stays host-mode on nuc-01 for builds and node pulls (nuc-01's routing mesh does
+# not serve its own local tasks, so ingress on 5000 breaks 192.168.0.50:5000). The
+# extra ingress port lets nuc-05's `tailscale serve` proxy
+# https://registry.<tailnet> to 127.0.0.1:{{ registry_ingress_port }}. Relative URLs keep upload Location headers valid behind TLS
 # termination; the descriptor cache is set by env because
 # /etc/docker/registry/config.yml on nuc-01 is not managed by this role.
 - name: Inspect registry service spec
@@ -106,16 +119,6 @@
     --env-add REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR=inmemory
     registry
   when: "'REGISTRY_HTTP_RELATIVEURLS=true' not in registry_spec.stdout"
-  changed_when: true
-
-- name: Move registry port 5000 from host mode to ingress (existing service)
-  ansible.builtin.command: >
-    docker service update
-    --publish-rm 5000
-    --publish-add published=5000,target=5000
-    registry
-  when: >-
-    '"PublishMode":"host"' in registry_spec.stdout
   changed_when: true
 
 # --- Docker Registry Frontend ---

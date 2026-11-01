@@ -137,7 +137,7 @@ Web UIs are tailnet-only HTTPS on 443, no port: `https://<name>.tailfe5b8d.ts.ne
 
 | Service             | Image                                        | Placement | Port | Notes                      |
 |---------------------|----------------------------------------------|-----------|------|----------------------------|
-| `registry`          | `registry:2`                                 | nuc-01    | 5000 (ingress) | Local Docker registry. Cluster/builds use plain HTTP on 192.168.0.50:5000; HTTPS at `https://registry.tailfe5b8d.ts.net` (Tailscale Service → 127.0.0.1:5000 on nuc-05) |
+| `registry`          | `registry:2`                                 | nuc-01    | 5000 (host), 5001 (ingress) | Local Docker registry. Cluster/builds use plain HTTP on 192.168.0.50:5000 (host mode: ingress on nuc-01 does not serve nuc-01's own tasks); HTTPS at `https://registry.tailfe5b8d.ts.net` (Tailscale Service → 127.0.0.1:5001 on nuc-05) |
 | `registry-frontend` | `joxit/docker-registry-ui:2.5.7`             | nuc-01    | 5080 (ingress) | Web UI (nginx proxy to `registry:5000` over the `backend` overlay, so no CORS). `https://registry-ui.tailfe5b8d.ts.net` |
 
 ---
