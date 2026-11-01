@@ -124,6 +124,20 @@
   when: registry_frontend_inspect.rc != 0 or registry_frontend_image not in registry_frontend_inspect.stdout
   changed_when: true
 
+- name: Check registry services' networks
+  ansible.builtin.command: docker service inspect {{ item }} --format '{% raw %}{{range .Spec.TaskTemplate.Networks}}{{.Target}} {{end}}{% endraw %}'
+  loop: [registry, registry-frontend]
+  register: registry_nets
+  changed_when: false
+
+- name: Attach registry services to backend overlay (existing services)
+  ansible.builtin.command: docker service update --network-add backend {{ item.item }}
+  loop: "{{ registry_nets.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stdout | trim | length == 0
+  changed_when: true
+
 # --- regctl (registry CLI) and pruning script ---
 
 - name: Install regctl
