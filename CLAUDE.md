@@ -112,7 +112,7 @@ Four stacks are active plus two standalone services. Replicas reflect the runnin
 
 ### Tailscale Services (`roles/tailscale_services/`, `playbooks/deploy-tailscale-services.yml`)
 
-Web UIs are tailnet-only HTTPS on 443, no port: `https://<name>.tailfe5b8d.ts.net` for `tradingo` (landing page), `airflow`, `grafana`, `monitor`, `research`, `dtale`, `jupyter`, `flower`, `miniflux`, `minio`. Each is a Tailscale Service hosted by nuc-05 (`tailscale serve --service=svc:<name> --https=443 http://127.0.0.1:<ingress port>`). Names are single labels because MagicDNS can't do nested names. Needs a one-time tailnet policy (host tag `tag:tradingo-host`, autoApprovers + grants for each `svc:`; see the role header) and the host node tagged. The list lives in `tailscale_services` in the role defaults; the landing page in tradingo-plat derives its links from the same names.
+Web UIs are tailnet-only HTTPS on 443, no port: `https://<name>.tailfe5b8d.ts.net` for `tradingo` (landing page), `airflow`, `grafana`, `monitor`, `research`, `dtale`, `jupyter`, `flower`, `miniflux`, `minio`, `registry` (Docker registry API: `docker push/pull registry.tailfe5b8d.ts.net/<image>`, real TLS cert so no insecure-registry config), `registry-ui`. Each is a Tailscale Service hosted by nuc-05 (`tailscale serve --service=svc:<name> --https=443 http://127.0.0.1:<ingress port>`). Names are single labels because MagicDNS can't do nested names. Needs a one-time tailnet policy (host tag `tag:tradingo-host`, autoApprovers + grants for each `svc:`; see the role header) and the host node tagged. The list lives in `tailscale_services` in the role defaults; the landing page in tradingo-plat derives its links from the same names.
 
 ---
 
@@ -137,8 +137,8 @@ Web UIs are tailnet-only HTTPS on 443, no port: `https://<name>.tailfe5b8d.ts.ne
 
 | Service             | Image                                        | Placement | Port | Notes                      |
 |---------------------|----------------------------------------------|-----------|------|----------------------------|
-| `registry`          | `registry:2`                                 | nuc-01    | 5000 | Local Docker registry (HTTP/insecure) |
-| `registry-frontend` | `konradkleine/docker-registry-frontend:v2`   | nuc-01    | 5080 | Web UI for browsing images |
+| `registry`          | `registry:2`                                 | nuc-01    | 5000 (host), 5001 (ingress) | Local Docker registry. Cluster/builds use plain HTTP on 192.168.0.50:5000; HTTPS at `https://registry.tailfe5b8d.ts.net` (Tailscale Service → ingress :5001) |
+| `registry-frontend` | `joxit/docker-registry-ui:2.5.7`             | nuc-01    | 5080 (ingress) | Web UI (nginx proxy to `registry:5000` over the `backend` overlay, so no CORS). `https://registry-ui.tailfe5b8d.ts.net` |
 
 ---
 
