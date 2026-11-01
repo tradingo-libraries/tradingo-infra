@@ -1,0 +1,45 @@
+---
+# playbooks/docker-cleanup.yml — Run the Docker cleanup cron jobs on demand on all swarm nodes
+#
+# Same commands as the cron fragments in roles/crontabs/files, run now instead of waiting:
+#   - docker-image-cleanup.sh: remove old images, keep the 2 newest per repo (in-use images kept)
+#   - docker system prune --volumes -f: stopped containers, unused networks, dangling images and
+#     UNUSED VOLUMES (a volume with no container attached is removed)
+#   - docker builder prune (nuc-01 only, the buildx host): build cache older than 7 days
+#
+# Usage:
+#   ansible-playbook playbooks/docker-cleanup.yml
+#   ansible-playbook playbooks/docker-cleanup.yml --limit nuc-02
+
+- name: Docker cleanup
+  hosts: swarm
+  become: true
+  # Nodes run in parallel (forks, default 5); free lets each run ahead instead of waiting
+  # for the slowest node between tasks. Output is interleaved per node.
+  strategy: free
+  tasks:
+    - name: Remove old images (keep 2 most recent per repo)
+      ansible.builtin.script: "{{ playbook_dir }}/../roles/crontabs/files/scripts/docker-image-cleanup.sh"
+      args:
+        executable: /bin/bash
+      register: image_cleanup
+      changed_when: "'REMOVE' in image_cleanup.stdout"
+
+    - name: Show removed images
+      ansible.builtin.debug:
+        msg: "{{ image_cleanup.stdout_lines | select('match', '^REMOVE') | list or ['none'] }}"
+
+    - name: Prune stopped containers, unused networks, dangling images and unused volumes
+      ansible.builtin.command: docker system prune --volumes --force
+      register: system_prune
+      changed_when: "'Total reclaimed space: 0B' not in system_prune.stdout"
+
+    - name: Show reclaimed space
+      ansible.builtin.debug:
+        msg: "{{ system_prune.stdout_lines | last }}"
+
+    - name: Prune build cache older than 7 days
+      ansible.builtin.command: docker builder prune --force --filter until=168h
+      register: builder_prune
+      changed_when: "'Total:\t0B' not in builder_prune.stdout"
+      when: inventory_hostname == 'nuc-01'
