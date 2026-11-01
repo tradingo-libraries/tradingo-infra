@@ -76,6 +76,7 @@
   ansible.builtin.command: >
     docker service create
     --name registry
+    --network backend
     --publish mode=host,published=5000,target=5000
     --mount type=volume,source=registry-data,target=/var/lib/registry
     --mount type=bind,source=/etc/docker/registry/config.yml,target=/etc/docker/registry/config.yml,readonly
@@ -91,7 +92,9 @@
 # joxit/docker-registry-ui in nginx proxy mode: the browser only talks to the UI,
 # which proxies /v2 to the registry, so the registry needs no CORS headers. (The
 # old konradkleine/docker-registry-frontend called the registry from the browser,
-# was unmaintained, and listed nothing without CORS.)
+# was unmaintained, and listed nothing without CORS.) Both services join the
+# `backend` overlay: a container can't reach the host's own published port by LAN
+# IP, so the UI proxies to the registry by service name instead.
 - name: Inspect registry-frontend service image
   ansible.builtin.command: docker service inspect registry-frontend --format '{% raw %}{{.Spec.TaskTemplate.ContainerSpec.Image}}{% endraw %}'
   register: registry_frontend_inspect
@@ -107,12 +110,13 @@
   ansible.builtin.command: >
     docker service create
     --name registry-frontend
+    --network backend
     --publish mode=host,published=5080,target=80
     --env SINGLE_REGISTRY=true
     --env REGISTRY_TITLE=Tradingo
     --env DELETE_IMAGES=true
     --env SHOW_CONTENT_DIGEST=true
-    --env NGINX_PROXY_PASS_URL=http://{{ registry_host }}
+    --env NGINX_PROXY_PASS_URL=http://registry:{{ registry_host.split(':')[1] }}
     --constraint 'node.hostname == nuc-01'
     --limit-memory 128M
     --restart-condition on-failure
