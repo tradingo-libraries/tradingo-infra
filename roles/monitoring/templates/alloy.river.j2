@@ -8,6 +8,29 @@ otelcol.receiver.otlp "default" {
     endpoint = "0.0.0.0:4318"
   }
   output {
+    traces  = [otelcol.processor.memory_limiter.default.input]
+    metrics = [otelcol.processor.memory_limiter.default.input]
+  }
+}
+
+// Shed load before the container hits its memory limit (limit is below the
+// 512M container cap so GC has headroom instead of thrashing)
+otelcol.processor.memory_limiter "default" {
+  check_interval = "1s"
+  limit          = "400MiB"
+  spike_limit    = "100MiB"
+  output {
+    traces  = [otelcol.processor.batch.default.input]
+    metrics = [otelcol.processor.batch.default.input]
+  }
+}
+
+// Batch before export instead of forwarding each request individually
+otelcol.processor.batch "default" {
+  timeout             = "5s"
+  send_batch_size     = 8192
+  send_batch_max_size = 8192
+  output {
     traces  = [otelcol.exporter.otlp.tempo.input]
     metrics = [otelcol.exporter.prometheus.default.input]
   }
