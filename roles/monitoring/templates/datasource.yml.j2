@@ -38,7 +38,9 @@ datasources:
         filterByTraceID: true
         filterBySpanID: false
         customQuery: true
-        query: '{service_name="${__span.tags["service.name"]}"} |= "${__span.traceId}"'
+        # $$ escapes Grafana's provisioning env-var expansion, which would otherwise blank
+        # ${__span...} and leave the query as {service_name=""} |= ""
+        query: '{service_name="$${__span.tags["service.name"]}"} |= "$${__span.traceId}"'
       tracesToMetrics:
         datasourceUid: PBFA97CFB590B2093
         spanStartTimeShift: "-1m"
@@ -53,5 +55,9 @@ datasources:
         datasourceUid: PBFA97CFB590B2093
       nodeGraph:
         enabled: true
+      # Traces Drilldown streams search and TraceQL-metrics results
+      streamingEnabled:
+        search: true
+        metrics: true
       lokiSearch:
         datasourceUid: P8E80F9AEF21F6940
