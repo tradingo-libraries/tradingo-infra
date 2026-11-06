@@ -2,6 +2,14 @@
 server:
   http_listen_port: 3200
 
+# Traces Drilldown streams search / metrics results over HTTP
+stream_over_http_enabled: true
+
+query_frontend:
+  metrics:
+    # default is 24h, which fails Drilldown's TraceQL-metrics queries on longer ranges
+    max_duration: 168h
+
 distributor:
   receivers:
     otlp:
